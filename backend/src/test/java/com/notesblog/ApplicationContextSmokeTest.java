@@ -90,10 +90,14 @@ class ApplicationContextSmokeTest {
 
         container = new MySQLContainer<>(DockerImageName.parse("mysql:9"))
                 .withDatabaseName("notes_blog")
-                // Testcontainers 默认会给 mysqld 加 --innodb_log_file_size=5M，
-                // 但 MySQL 9.7 已删除该变量，不覆盖命令会直接启动失败
-                .withCommand(
-                        "mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci");
+                // Testcontainers 自带一份 my.cnf 挂进 /etc/mysql/conf.d/，里面有
+                // innodb_log_file_size=5M。MySQL 9.7 删了这个变量，而 mysql:9 是浮动
+                // 标签（2026-10-29 起是 9.7.4），容器会直接起不来。
+                // 这个项在配置文件里，用 withCommand 追加命令行参数覆盖不掉——原来那行
+                // 从来没生效过，只是当时镜像还认这个变量。withConfigurationOverride
+                // 会整份替换配置目录，所以 src/test/resources/mysql-smoke-conf/my.cnf
+                // 是一份完整配置，不是差异补丁。
+                .withConfigurationOverride("mysql-smoke-conf");
         container.start();
 
         registry.add("spring.datasource.url", container::getJdbcUrl);
