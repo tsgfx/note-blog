@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>一隅 · 郭瑞超的笔记与技术博客</title>
+    <meta
+      name="description"
+      content="郭瑞超的个人站点：计算机技术硕士在读，研究方向三维视觉（点云与场景的分割、重建、编辑），做过大模型工程化与 C++ 高并发后端。这里有我的技术笔记与博客。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="一隅" />
+    <meta property="og:title" content="一隅 · 郭瑞超" />
+    <meta property="og:description" content="个人笔记系统与技术博客：三维视觉研究笔记、大模型工程化实践。" />
+    <link rel="alternate" type="application/rss+xml" title="一隅" href="/rss.xml" />
+    <script>
+      // 首屏渲染前确定主题，避免浅色闪烁。优先用户选择，其次跟随系统。
+      ;(function () {
+        var dark = false
+        try {
+          var stored = localStorage.getItem('notes_blog_theme')
+          dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+        } catch (e) {}
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,126 @@
+# 一隅 · 容器编排
+#
+# 用法：
+#   docker compose up -d --build     首次构建并启动
+#   docker compose logs -f backend   看后端日志
+#   docker compose down              停止（数据保留在 volume 里）
+#   docker compose down -v           停止并删除数据（谨慎）
+#
+# 访问：http://localhost:8088   后端直连：http://localhost:8081
+
+name: note-blog
+
+services:
+  mysql:
+    image: mysql:9
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_dev_pw}
+      MYSQL_DATABASE: ${DB_NAME:-notes_blog}
+      MYSQL_USER: ${DB_USER:-notes}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-notes_dev_pw}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 只在数据目录为空时执行一次；改了 schema 要重建 volume 才会重新初始化
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      # 首次初始化要建库建表，给足 60s；mysqladmin ping 只代表进程活着
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
+    networks: [nb]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    # 宿主机若用 Tailscale/MagicDNS（100.100.100.100），虚拟机里解析不了外网，
+    # 必须给容器显式指定公共 DNS，否则 ollama pull 会报 "server misbehaving"
+    dns:
+      - 223.5.5.5
+      - 119.29.29.29
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [nb]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    dns:
+      - 223.5.5.5
+      - 119.29.29.29
+    # colima 的 host.docker.internal（2001:2::5）实测到不了宿主机，
+    # 换成 vmnet 的宿主机固定地址 192.168.5.2（colima 默认子网，换网不变；
+    # 若重建 colima 用了别的子网，这里要跟着改）。
+    extra_hosts:
+      - "host.docker.internal:192.168.5.2"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      # 容器默认是 UTC，而 JDBC 连接串声明了 serverTimezone=Asia/Shanghai。
+      # 两边不一致时 Connector/J 会在读出时做换算，导致所有 LocalDateTime
+      # 比库里少 8 小时（表现为页面「更新于 8 小时前」、笔记时间集体偏移）。
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-notes_blog}
+      DB_USER: ${DB_USER:-notes}
+      DB_PASSWORD: ${DB_PASSWORD:-notes_dev_pw}
+      # 容器内互相用服务名访问，不是 localhost
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-ollama}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://ollama:11434}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://opencode.ai/zen/go/v1}
+      LLM_MODEL: ${LLM_MODEL:-minimax-m3}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 里设置 JWT_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 里设置 ADMIN_PASSWORD}
+      # 容器对外端口是 8088，与开发期的 5173 分开，避免 RSS 链接指向错误地址
+      SITE_BASE_URL: ${SITE_BASE_URL_CONTAINER:-http://localhost:8088}
+      SITE_TITLE: ${SITE_TITLE:-一隅}
+      # 来源白名单。默认只放回环地址；要让手机用局域网 IP 访问，
+      # 在 .env 里写 CORS_ALLOWED_ORIGINS=http://192.168.x.x:8088（逗号分隔，可多条）。
+      # 注意 IP 不要用通配 —— Spring 会展开成正则，把形似的域名也放进来。
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:[*],http://127.0.0.1:[*]}
+      ASSETS_ROOT: /data/assets
+    volumes:
+      # 图片目录，宿主机原有 2236 张图直接复用
+      - ./storage/assets:/data/assets
+      # 备份目录只读挂载：后端只读文件时间与大小来判断「多久没备份成功」，
+      # 绝不允许容器写这个目录——备份是宿主机的事
+      - ./backups:/data/backups:ro
+    ports:
+      - "8081:8080"
+    networks: [nb]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8088:80"
+    networks: [nb]
+
+volumes:
+  mysql-data:
+  ollama-models:
+
+networks:
+  nb:

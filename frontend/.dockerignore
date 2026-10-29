@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vite/
+.git/
+.gitignore
+
+# 本地开发配置
+.env
+.env.*
+*.local
+
+# 设计稿
+*.log

@@ -1,0 +1,56 @@
+# 后端
+backend/target/
+*.class
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 其它
+.DS_Store
+*.log
+.idea/
+.vscode/
+*.iml
+*.tsbuildinfo
+
+# 本地密钥配置
+.env
+.env.local
+# 模板必须入库，否则新人没有起点
+!.env.example
+
+# 备份与导出数据（避免进入 git 仓库）
+backups/
+export/
+storage/
+
+# 本地临时凭据（改完密码请删掉）
+.new-admin-password.txt
+
+# 第三方参考仓库（本地 clone，71MB，不入库）
+third_party/
+
+# 其他代理复制进来的技能副本：本体在 ~/.workbuddy/skills，入库后会两边分叉
+.agents/
+
+# 开发日记与本地笔记：含服务器 IP、密钥路径、内网地址，只留在本机
+.workbuddy/
+
+# 验证用的截图（含个人简历页与笔记正文，不入公开仓库）
+shots/
+
+# 内容初筛报告：含实验室内网 IP 与未发表科研目录清单
+docs/publish-screening-*.md
+
+# Playwright 产物
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
+
+# 预演用的本地变量（含示例密码，不入库）
+deploy/rehearsal/.env
+
+# Tiptap v3 迁移试验封存的测试资产（等下次升级窗口启用）
+frontend/e2e-v3-park/

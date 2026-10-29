@@ -1,0 +1,99 @@
+server:
+  port: 8080
+
+assets:
+  # 图片根目录；默认指向项目根下的 storage/assets（以 backend 目录为工作目录启动）
+  root: ${ASSETS_ROOT:../storage/assets}
+
+site:
+  # 博客对外地址，用于 RSS 中的链接；生产环境改为真实域名
+  base-url: ${SITE_BASE_URL:http://localhost:5173}
+  title: ${SITE_TITLE:一隅}
+
+spring:
+  mvc:
+    async:
+      request-timeout: 180000
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  security:
+    filter:
+      # 默认是 async,error,request。SSE 结束时会触发 ASYNC 派发，
+      # 此时 SecurityContext 已清空，会被误判为未认证而抛 AuthorizationDenied。
+      # 初次请求已完成鉴权，因此不让安全链参与异步派发。
+      dispatcher-types: request,error
+  application:
+    name: notes-blog
+  datasource:
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:notes_blog}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USER:notes}
+    password: ${DB_PASSWORD:notes_dev_pw}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      # 表结构由 db/schema.sql 显式管理，应用不建表也不改表
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  jackson:
+    default-property-inclusion: non_null
+
+# 本地能力（M1 向量、M4 问答）
+# 三项都用环境变量注入，容器里指向 ollama 服务即可，不必改这份文件
+notes:
+  embedding:
+    # backend=ollama（默认）：base-url 指向 Ollama，api-key 留空
+    # backend=openai：base-url 指向 OpenAI 兼容服务（如 https://api.siliconflow.cn/v1），
+    #   model 写完整 id（如 BAAI/bge-m3），api-key 必填；
+    #   模型必须与建库时一致（bge-m3，1024 维），否则检索全废
+    backend: ${EMBEDDING_BACKEND:ollama}
+    base-url: ${EMBEDDING_BASE_URL:http://localhost:11434}
+    api-key: ${EMBEDDING_API_KEY:}
+    model: ${EMBEDDING_MODEL:bge-m3}
+  llm:
+    base-url: ${LLM_BASE_URL:https://opencode.ai/zen/go/v1}
+    model: ${LLM_MODEL:minimax-m3}
+    api-key: ${LLM_API_KEY:}
+    user-agent: notes-blog/0.1
+
+security:
+  jwt-secret: ${JWT_SECRET:change-this-development-secret-to-a-long-random-value-please}
+  jwt-expiration-hours: ${JWT_EXPIRATION_HOURS:24}
+  admin-username: ${ADMIN_USERNAME:admin}
+  admin-password: ${ADMIN_PASSWORD:change-me-now}
+
+app:
+  cors:
+    # 允许携带这些 Origin 的请求。浏览器即使同源发 POST 也会带 Origin 头，
+    # 不在名单里会被 CORS 过滤器直接 403（"Invalid CORS request"）。
+    #
+    # 默认只放开回环地址的任何端口（开发 5173、预览 4173、容器 8088 都够用）。
+    #
+    # **刻意不用 IP 通配**：Spring 会把 `192.168.*` 展开成正则 `.*`，
+    # 于是 `http://192.168.evil.example` 也能匹配上——这是测试当场抓到的。
+    # 要让手机通过局域网 IP 访问，就把具体地址写进 .env 的 CORS_ALLOWED_ORIGINS
+    # （compose 会传进容器），形如：
+    #   CORS_ALLOWED_ORIGINS=http://localhost:[*],http://127.0.0.1:[*],http://192.168.1.7:8088
+    # 上线换真实域名时同理，务必把域名写进去。
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
+
+  backup:
+    # 备份目录，只读挂载进容器（见 docker-compose.yml）。
+    # 后端只读文件时间与大小来判断「多久没备份成功」，不写这个目录。
+    dir: ${BACKUP_DIR:/data/backups}
+
+  rate-limit:
+    # 这两个接口是"贵"的：问答花 LLM token，搜索做向量检索。
+    # 按客户端 IP 每分钟计数，超了返回 429 + Retry-After。
+    ask-per-minute: ${RATE_LIMIT_ASK:10}
+    search-per-minute: ${RATE_LIMIT_SEARCH:60}
+
+logging:
+  level:
+    com.notesblog: INFO

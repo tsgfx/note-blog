@@ -1,0 +1,9 @@
+dist/
+node_modules/
+package-lock.json
+public/
+src/assets/
+
+# Playwright 产物（测试运行时会写，不该参与格式检查）
+test-results/
+playwright-report/

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="一隅">
+  <!-- 一隅：方印为面，右下角留缺（隅），内刻一横（一）。 -->
+  <g fill="none" stroke="#2F5D57" stroke-width="2.8" stroke-linejoin="miter">
+    <path d="M6.2 26V6h19.6v11.2" />
+    <path d="M18.4 26H6.2" />
+    <path d="M11.2 15.4h9.6" stroke-width="3.4" />
+  </g>
+  <circle cx="21.4" cy="21.2" r="1.7" fill="#2F5D57" />
+</svg>
