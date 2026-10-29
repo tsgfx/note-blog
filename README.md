@@ -96,7 +96,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.notesblog.vite-dev.p
 ## 开发命令
 
 ```bash
-# 后端测试：156 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
+# 后端测试：183 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
 cd backend && mvn test
 
 # 前端检查
@@ -107,7 +107,14 @@ npm run build                        # vue-tsc 类型检查 + 打包
 
 测试守的是容易回归的行为：参数错误必须是 400 不是 500、无令牌必须 401、
 改密后旧令牌必须失效、上传要校验魔数、路径穿越要被拦。
-因为不碰数据库，CI 里不需要起 MySQL。
+
+多数用例是纯切片 / 单元测试，不碰数据库；但 `ApplicationContextSmokeTest` 会起一个
+真的 MySQL 容器（Testcontainers），否则「配置写错导致起不来」这类问题只能等上线才发现。
+CI 因此需要 Docker —— GitHub 的 runner 自带，本地跑需要 Docker 可用，否则这 2 个用例会被跳过。
+
+> **本机用 colima 时会被静默跳过**：Testcontainers 只探 `/var/run/docker.sock`，
+> colima 的 socket 在 `~/.colima/default/docker.sock`。表现是本地显示 `Skipped: 2`，
+> 看着是绿的，其实没跑过——CI 上一次都没绿时，本地一直是这个样子。
 
 ## 容器化部署
 
@@ -200,7 +207,9 @@ DB_PASSWORD='...' python3 scripts/export_markdown.py
 - 操作日志页面：登录后顶部「操作日志」，或 `/admin/audit`。接口 `GET /api/admin/audit-logs`（仅管理员）。记录登录（含失败，不记录密码）、笔记增删改、发布/下线、图片上传。
 - 备份脚本使用 `--skip-lock-tables` 而非 `--single-transaction`：后者在当前应用账号权限下会失败。个人博客写入频率低，备份不是严格的一致性快照，这个取舍可以接受。
 - 异地备份：服务器每日备份成功后，`backup-upload-cos.sh` 把 dump 用 AES-256 加密后传到 COS 的 `backups/` 前缀；密钥在服务器 `/opt/note-blog/.backup-key`。恢复命令见 `deploy/README.md`。
-- 可用性探活：外部服务（UptimeRobot / Cloudflare Healthcheck）监控 `GET /api/health`，关键字 `"status":"up"`。不再依赖本机定时任务。
+- 可用性探活：仓库里的 `.github/workflows/uptime.yml` 每 10 分钟探 `GET /api/health` 与首页，
+  失败即让 job 变红、由 GitHub 发通知。判据是「HTTP 200 **且** body 含 `"status":"up"`」——
+  这个接口依赖挂掉时仍回 200，只看状态码等于没监控。站点地址取自仓库变量 `SITE_BASE_URL`。
 
 > 图片迁移：`python3 scripts/archive/import_assets.py --apply`（默认预览）。原语雀导出中有 12 处图片引用在 vault 里本就不存在（集中在 Git 教程、Redis 教程、数学建模等笔记），保留原链接，页面显示为破损图标。
 
