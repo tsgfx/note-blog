@@ -16,13 +16,9 @@ const emit = defineEmits<{ select: [path: string] }>()
 </script>
 
 <template>
-  <ul class="ftree">
+  <ul class="ftree" :class="{ 'ftree-nested': depth > 0 }">
     <li v-for="node in nodes" :key="node.path" class="ftree-item">
-      <div
-        class="ftree-row"
-        :class="{ 'ftree-active': node.path === selected }"
-        :style="{ paddingLeft: `${6 + depth * 13}px` }"
-      >
+      <div class="ftree-row" :class="{ 'ftree-active': node.path === selected, 'ftree-root': depth === 0 }">
         <button
           v-if="node.children.length"
           class="ftree-caret"
@@ -61,6 +57,31 @@ const emit = defineEmits<{ select: [path: string] }>()
   list-style: none;
   display: grid;
   gap: 1px;
+  /*
+   * 必须显式给 minmax(0, 1fr)。grid 的隐式列是 auto，下层节点的
+   * `white-space: nowrap` 会把它的 min-content 顶到整条目录名那么宽——
+   * 二三级列表于是比侧栏还宽（实测 276px vs 208px），文字被侧栏边缘硬切，
+   * 右侧的篇数直接被挤出可视区。minmax(0, …) 让列可以被压缩，省略号才有机会生效。
+   */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ftree-item {
+  min-width: 0;
+}
+
+/*
+ * 层级用「缩进 + 竖向导引线」一起表达，而不是只靠 13px 的 padding。
+ * 只靠缩进时，深层条目看起来像"文字随机右移"——尤其目录名本身带空格或
+ * 中文标点时，二三级的边界完全看不出来。加一条 1px 的竖线后，同一父级下
+ * 的兄弟条目被串成一根树枝，层级关系一眼可见。
+ *
+ * 导引线画在 nested 的左侧，位置对齐父级 caret 的中心（16px + gap/2）。
+ */
+.ftree-nested {
+  margin-left: 13px;
+  padding-left: 5px;
+  border-left: 1px solid var(--hairline);
 }
 
 .ftree-row {
@@ -75,6 +96,12 @@ const emit = defineEmits<{ select: [path: string] }>()
   transition:
     background-color var(--dur-1) var(--ease-soft),
     color var(--dur-1) var(--ease-soft);
+}
+
+/* 一级目录（库）稍重一档：它是这一列里"最大的分类"，不该和叶子同级 */
+.ftree-root {
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .ftree-row:hover {

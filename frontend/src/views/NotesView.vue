@@ -24,8 +24,66 @@ import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
 
 const PAGE_SIZE = 40
-/** 分类栏默认展示多少个标签，剩下的收进「更多」 */
+/** 分类栏默认展示多少个标签，超过就放进定高滚动区（靠搜索定位生僻标签） */
 const TAG_LIMIT = 18
+
+/*
+ * 左栏宽度拖拽。
+ *
+ * 目录名会很长（`科研共享知识库/GFS_VL/参考论文阅读/...`），固定 208px 必然
+ * 要么截断得看不出区别、要么留一大片空白。宽度存 localStorage，双击把手复位。
+ * 变量挂在 .layout 上而不是 documentElement：这是本页的布局，不该影响别的页面。
+ */
+const SIDEBAR_KEY = 'notes-sidebar-w-px'
+const SIDEBAR_MIN = 168
+const SIDEBAR_MAX = 420
+const SIDEBAR_DEFAULT = 208
+const sidebarWidth = ref(SIDEBAR_DEFAULT)
+const layoutEl = ref<HTMLElement>()
+
+function clampSidebar(px: number): number {
+  const max = Math.min(SIDEBAR_MAX, window.innerWidth - 420)
+  return Math.round(Math.min(Math.max(px, SIDEBAR_MIN), Math.max(SIDEBAR_MIN, max)))
+}
+
+function applySidebar(px: number): number {
+  const w = clampSidebar(px)
+  sidebarWidth.value = w
+  return w
+}
+
+function onSidebarMove(e: PointerEvent) {
+  const left = layoutEl.value?.getBoundingClientRect().left ?? 0
+  applySidebar(e.clientX - left)
+}
+
+function onSidebarUp() {
+  document.body.classList.remove('sidebar-resizing')
+  window.removeEventListener('pointermove', onSidebarMove)
+  window.removeEventListener('pointerup', onSidebarUp)
+  try {
+    localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth.value))
+  } catch {
+    // 隐私模式下 localStorage 会抛，宽度不记住不影响使用
+  }
+}
+
+function onSidebarDown(e: PointerEvent) {
+  if (window.innerWidth < 760) return
+  e.preventDefault()
+  document.body.classList.add('sidebar-resizing')
+  window.addEventListener('pointermove', onSidebarMove)
+  window.addEventListener('pointerup', onSidebarUp)
+}
+
+function resetSidebar() {
+  applySidebar(SIDEBAR_DEFAULT)
+  try {
+    localStorage.removeItem(SIDEBAR_KEY)
+  } catch {
+    // 同上
+  }
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -44,6 +102,8 @@ const folders = ref<FolderNode[]>([])
 const tags = ref<TagCount[]>([])
 const activeTags = ref<string[]>([])
 const tagsExpanded = ref(false)
+/** 标签搜索词：419 个标签铺不开，靠它定位 */
+const tagQuery = ref('')
 const selected = ref<Set<number>>(new Set())
 
 const searchEl = ref<HTMLInputElement>()
@@ -67,8 +127,29 @@ const filtering = computed(() =>
 /** 「全部」的篇数取树里各顶层节点之和：totalElements 是筛选后的数，会跟着目录变小 */
 const allNotes = computed(() => folders.value.reduce((sum, node) => sum + node.count, 0) || totalElements.value)
 
-/** 折叠时只显示前 N 个标签 */
-const visibleTags = computed(() => (tagsExpanded.value ? tags.value : tags.value.slice(0, TAG_LIMIT)))
+/**
+ * 分类栏要显示哪些标签。
+ *
+ * 三道顺序，缺一不可：
+ * 1. **已选中的永远在最前**——它们可能不在前 18 个里，藏起来就成了「怎么清不掉」；
+ * 2. 搜索词命中的全列出（此时不受数量限制），否则没法在 419 个里找到生僻标签；
+ * 3. 没搜索、没展开时只给前 TAG_LIMIT 个。
+ */
+const visibleTags = computed(() => {
+  const picked = tags.value.filter((t) => activeTags.value.includes(t.name))
+  const q = tagQuery.value.trim().toLowerCase()
+
+  if (q) {
+    const rest = tags.value.filter((t) => !activeTags.value.includes(t.name) && t.name.toLowerCase().includes(q))
+    return [...picked, ...rest]
+  }
+  if (tagsExpanded.value) {
+    return [...picked, ...tags.value.filter((t) => !activeTags.value.includes(t.name))]
+  }
+  // 收起状态：已选的先占位，再用最常用的补满
+  const rest = tags.value.filter((t) => !activeTags.value.includes(t.name)).slice(0, TAG_LIMIT)
+  return [...picked, ...rest]
+})
 
 function folderOf(note: NoteSummary): string {
   if (!note.sourcePath) return '新建笔记'
@@ -475,6 +556,14 @@ watch(
 )
 
 onMounted(() => {
+  // 左栏宽度是用户上次拖出来的，先恢复再渲染，避免闪一下变宽
+  try {
+    const saved = Number(localStorage.getItem(SIDEBAR_KEY))
+    if (saved > 0) applySidebar(saved)
+  } catch {
+    // 读不到就用默认宽度
+  }
+
   // ?path= 进来的（分享链接、刷新、从详情页返回）先恢复选中项，再拉数据
   const initial = typeof route.query.path === 'string' ? route.query.path : ''
   if (initial) {
@@ -487,7 +576,11 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown)
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('pointermove', onSidebarMove)
+  window.removeEventListener('pointerup', onSidebarUp)
+})
 </script>
 
 <template>
@@ -516,7 +609,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </header>
 
-    <div class="layout">
+    <div ref="layoutEl" class="layout" :style="{ '--sidebar-w': `${sidebarWidth}px` }">
       <aside class="libraries" aria-label="按目录筛选">
         <button class="lib" :class="{ 'lib-active': activePath === '' }" type="button" @click="pickFolder('')">
           <span class="lib-name">全部</span>
@@ -527,10 +620,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
         <div v-if="tags.length" class="shelf">
           <p class="shelf-title">
-            分类
-            <button v-if="activeTags.length" class="tag-clear" type="button" @click="clearTags">清除</button>
+            <span>标签</span>
+            <button v-if="activeTags.length" class="tag-clear" type="button" @click="clearTags">
+              清除 {{ activeTags.length }} 个
+            </button>
           </p>
-          <div class="tag-cloud">
+
+          <!-- 419 个标签不可能全铺开。默认只放最常用的几个，
+               其余靠搜索找——比「更多 401 个」那种按钮有用得多 -->
+          <div v-if="tags.length > TAG_LIMIT" class="tag-search-wrap">
+            <input v-model="tagQuery" class="tag-search" type="search" placeholder="搜索标签…" aria-label="搜索标签" />
+          </div>
+
+          <!-- 超过一屏就收进一个定高滚动区：展开 413 个标签时页面原本会被顶到 5000px -->
+          <div class="tag-cloud" :class="{ 'tag-cloud-scroll': visibleTags.length > TAG_LIMIT }">
             <button
               v-for="item in visibleTags"
               :key="item.name"
@@ -540,14 +643,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               :title="`${item.name}（${item.count} 篇）`"
               @click="toggleTag(item.name)"
             >
-              {{ item.name }}<span class="tag-num">{{ item.count }}</span>
+              <span class="tag-name">{{ item.name }}</span>
+              <span class="tag-num">{{ item.count }}</span>
             </button>
           </div>
-          <button v-if="tags.length > TAG_LIMIT" class="tag-more" type="button" @click="tagsExpanded = !tagsExpanded">
-            {{ tagsExpanded ? '收起' : `更多 ${tags.length - TAG_LIMIT} 个` }}
+
+          <p v-if="tagQuery.trim() && !visibleTags.length" class="tag-empty">没有匹配的标签</p>
+
+          <button
+            v-if="!tagQuery.trim() && tags.length > TAG_LIMIT"
+            class="tag-more"
+            type="button"
+            @click="tagsExpanded = !tagsExpanded"
+          >
+            {{ tagsExpanded ? '收起' : `全部 ${tags.length} 个标签` }}
           </button>
         </div>
       </aside>
+
+      <!-- 拖拽把手：单独一列，双保险的键盘无障碍入口是 aria-label + 双击复位 -->
+      <div
+        class="sidebar-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        :aria-label="`调整目录栏宽度，当前 ${sidebarWidth} 像素`"
+        title="拖动调整宽度 · 双击恢复默认"
+        @pointerdown="onSidebarDown"
+        @dblclick="resetSidebar"
+      ></div>
 
       <div class="list">
         <div class="toolbar">
@@ -723,9 +846,48 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .layout {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  gap: var(--space-6);
+  /* 侧栏宽度由拖拽决定（--sidebar-w），右侧内容吃满剩余 */
+  grid-template-columns: var(--sidebar-w, 208px) 6px minmax(0, 1fr);
+  gap: var(--space-5);
   align-items: start;
+}
+
+/* 拖拽把手：视觉上只有一条发丝线，命中区却有 6px 宽 */
+.sidebar-resizer {
+  position: sticky;
+  top: 80px;
+  align-self: stretch;
+  min-height: 240px;
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: 3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color var(--dur-1) var(--ease-soft);
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after {
+  background: var(--pen);
+}
+
+/* 拖拽期间锁住全局光标与选区，否则划过文字会变成选词、光标闪回箭头 */
+:global(body.sidebar-resizing) {
+  cursor: col-resize;
+  user-select: none;
+}
+
+:global(body.sidebar-resizing) .sidebar-resizer::after {
+  background: var(--pen);
 }
 
 .head-actions {
@@ -767,6 +929,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   padding: 0;
   font: inherit;
   font-size: var(--text-xs);
+  letter-spacing: normal;
   color: var(--pen);
   cursor: pointer;
 }
@@ -775,19 +938,67 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   text-decoration: underline;
 }
 
+/* 标签搜索：只有在标签数超过一屏时才出现 */
+.tag-search-wrap {
+  padding: 0 8px var(--space-2);
+}
+
+.tag-search {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+  transition: border-color var(--dur-1) var(--ease-soft);
+}
+
+.tag-search:focus {
+  outline: none;
+  border-color: var(--pen-soft);
+}
+
+.tag-search::placeholder {
+  color: var(--ink-3);
+}
+
+/*
+ * 标签云宽度随侧栏变，所以用 flex-wrap 而不是网格。
+ * 每个 chip 限宽 + 省略号：像 `论文阅读_PointLLM-V2_Empowering...` 这种
+ * 长英文标签否则会把整个侧栏撑开。
+ */
 .tag-cloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   padding: 0 8px;
+}
+
+/* 搜索或展开时给个高度上限：413 个标签全铺开会把页面顶到 5000px 以上，
+   「查看更多」反而比不看更难用。滚动区里翻，侧栏高度保持稳定 */
+.tag-cloud-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   max-width: 100%;
-  padding: 3px 7px;
+  padding: 2px 7px;
   border: 1px solid var(--hairline);
   border-radius: 999px;
   background: none;
@@ -816,11 +1027,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .tag-num {
   font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
+  font-size: 10px;
+  opacity: 0.7;
 }
 
 .tag-on .tag-num {
   color: var(--pen);
+  opacity: 1;
+}
+
+.tag-empty {
+  margin: var(--space-2) 0 0;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
 }
 
 .tag-more {
@@ -1260,6 +1480,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 @media (max-width: 760px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  /* 单列布局下没有左右可拖，把手必须收起，否则会占掉一行高度 */
+  .sidebar-resizer {
+    display: none;
   }
 
   .libraries {
