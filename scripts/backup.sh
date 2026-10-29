@@ -37,6 +37,12 @@ FROM="${BACKUP_FROM:-auto}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/docker-compose.yml}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 
+# 备份文件里有全部笔记正文、用户表（含密码哈希）、审计日志。
+# cron 的 umask 通常是 022，dump 会落成 -rw-r--r--：同机的其他用户能读。
+# 本机开发无所谓，服务器上不该这样，所以这里显式收口到 600。
+# umask 只影响本进程创建的文件，不会传给调用者。
+umask 077
+
 mkdir -p "$DEST"
 
 # 判断数据到底在哪一边
