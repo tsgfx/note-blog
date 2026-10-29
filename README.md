@@ -258,7 +258,13 @@ cp .env.example .env
 **这个密码只在建库时生效**，库里已有账号后改 `.env` 不会覆盖密码——
 请登录后点右上角「设置」修改。改密会把令牌版本号 +1，所有已登录设备立即失效。
 
-`/api/blog/**`、`/api/health`、`/api/auth/login`、读取图片公开，其余后台、搜索、问答接口需要 JWT。
+`/api/blog/**`、`/api/health`、`/api/auth/login`、`/api/ask`（游客限次，见下）、读取图片公开，
+其余后台、搜索、问答接口需要 JWT。
+
+> **游客的两个能力**：问答（每天有限次）与评论（默认可见，管理员可隐藏/删除）。
+> 游客的检索范围**只有已发布文章**——分片索引里也有草稿，`AskController` 与
+> `PublicSearchController` 走 `searchPublished` 过滤。这条是安全边界，有测试守着
+> （`SemanticSearchScopeTest`）。
 
 ## 已接入 API
 
@@ -286,20 +292,44 @@ cp .env.example .env
 | POST | `/api/notes/{id}/generate-meta` | 自动生成摘要与标签（`force=true` 全量重写） |
 | POST | `/api/notes/generate-meta/batch` | 批量补齐摘要与标签 |
 | POST | `/api/notes/reindex` | 重建向量索引（返回剩余待处理数） |
-| POST | `/api/search` | 混合检索，返回命中的分片 |
-| POST | `/api/ask` | RAG 问答，SSE 流式 |
+| POST | `/api/search` | 混合检索，返回命中的分片（登录=全库，匿名=仅已发布） |
+| POST | `/api/ask` | RAG 问答，SSE 流式（**公开**；游客按 IP 每日限次，管理员不限） |
 | GET | `/api/assets/**` | 图片读取（公开；匿名只放行已发布文章引用的图） |
 | POST | `/api/assets` | 上传图片（multipart，仅 png/jpg/gif/webp，≤10MB） |
 | GET | `/api/blog/posts` | 已发布文章列表（公开） |
 | GET | `/api/blog/posts/{slug}` | 已发布文章详情（公开） |
+| POST | `/api/blog/search` | 游客语义搜索，**只返回已发布文章**（公开） |
+| GET | `/api/blog/posts/{slug}/comments` | 某篇文章的公开评论（公开，只含可见的） |
+| POST | `/api/blog/posts/{slug}/comments` | 游客发评论（公开；蜜罐 + 每分钟 1 条 + 每天 10 条） |
 | GET | `/api/blog/rss.xml` | RSS 2.0（公开） |
 | GET | `/api/blog/sitemap.xml` | sitemap（公开） |
 | GET | `/api/blog/robots.txt` | robots.txt（公开） |
 | GET | `/api/admin/audit-logs` | 操作日志（仅管理员） |
+| GET | `/api/admin/comments` | 全部评论，含已隐藏与来源 IP（仅管理员） |
+| PATCH | `/api/admin/comments/{id}/visibility` | 隐藏 / 恢复可见（软隐藏，可撤销） |
+| DELETE | `/api/admin/comments/{id}` | 永久删除评论 |
 | GET | `/api/system/backup` | 备份状态：最近成功时间、体积、份数（需登录） |
 
 > `/api/auth/**` 是 `permitAll`，只放匿名入口（登录）。任何需要身份的写操作
 > 必须挂在 `/api/account/**` 下——这条约束写在 `SecurityConfig` 的类注释里，也有测试守着。
+
+### 游客问答的每日额度
+
+两道并行，缺一不可：
+
+| 那道 | 位置 | 上限 | 特点 |
+|---|---|---|---|
+| 浏览器 | `frontend/src/lib/guestQuota.ts` | 5 条/天 | 显示剩余并本地拦截；清缓存即绕过，**只负责体验** |
+| 按 IP | `GuestQuotaService`（落库 `guest_daily_usage`） | 15 条/天 | 真正的硬上限；重启、发版都不清零 |
+
+IP 上限刻意大于承诺的 5 条：手机流量和不少宽带是共享出口 IP，严格按 5 条会让
+同一出口下的人互相挤占。前端已经把单浏览器压到 5 条了。
+
+配置在 `.env` 的 `GUEST_ASK_DAILY_ALLOWANCE` / `GUEST_ASK_IP_DAILY_CEILING`。
+**`RATE_LIMIT_ASK` 必须 ≥ `GUEST_ASK_IP_DAILY_CEILING`**，否则游客会先撞上
+「请求过于频繁，请 60 秒后再试」而不是「今天的提问次数已用完」——语义不对，
+本地端到端实测踩过这个坑。
+
 
 两个核心接口的报文：
 
@@ -310,7 +340,8 @@ Body: { "question": "GFS_VL 的环境怎么配置？", "limit": 8 }
 
 POST /api/ask
 Body: { "question": "GFS_VL 的环境怎么配置？" }
-返回：SSE；事件顺序为 sources → delta* → done/error
+返回：SSE；事件顺序为 sources → quota（仅游客）→ delta* → done/error
+      游客配额用完时不开流，直接回 429 + Retry-After，body 里带 resetInSeconds
 ```
 
 所有接口返回统一响应体 `{ code, message, data }`，`code=0` 表示成功。

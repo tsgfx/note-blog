@@ -39,6 +39,9 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/**", "/api/blog/**").permitAll()
+                        // 问答对游客开放：游客额度与检索范围在 AskController 里按身份区分。
+                        // 注意放行的是「能调用」，不是「能看全库」——游客只检索已发布分片。
+                        .requestMatchers("/api/ask").permitAll()
                         // 错误页由容器转发，不能要求认证，否则真实错误会被掩盖成 401
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/assets/**").permitAll()

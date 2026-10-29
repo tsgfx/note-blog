@@ -33,9 +33,23 @@ public class SemanticSearchService {
     private final EmbeddingClient embeddingClient;
     private final VectorIndex index;
 
+    /** 管理员检索：全库（含草稿）。 */
     public List<SearchResultDto> search(String question, int limit) {
+        return search(question, limit, index.chunks());
+    }
+
+    /**
+     * 公开检索：只用已发布笔记的分片。
+     *
+     * <p>游客能问答/搜索之后必须走这个入口。草稿也在索引里（分片按笔记建、不分状态），
+     * 用 {@link VectorIndex#publishedChunks()} 过滤，少这一步就是把草稿正文送给匿名访客。
+     */
+    public List<SearchResultDto> searchPublished(String question, int limit) {
+        return search(question, limit, index.publishedChunks());
+    }
+
+    private List<SearchResultDto> search(String question, int limit, List<VectorIndex.Chunk> chunks) {
         int wanted = Math.min(Math.max(limit, 1), 20);
-        List<VectorIndex.Chunk> chunks = index.chunks();
         float[] query = toFloats(embeddingClient.embed(question));
         VectorIndex.normalize(query);
 

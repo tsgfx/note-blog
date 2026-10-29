@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import type { SearchResult } from '../api/notes'
 import { renderMarkdown } from './markdown'
 import { notify } from './feedback'
+import { canAsk, consumeLocally, remaining, syncFromServer } from './guestQuota'
 
 export type AskStage = 'idle' | 'searching' | 'answering'
 
@@ -83,10 +84,23 @@ function parseEvent(block: string): StreamEvent | null {
   }
 }
 
+/** 游客今日剩余提问次数（响应式，供界面显示）。
+ *  声明在 handle() 之前：handle 会写它，而 const 有暂时性死区。 */
+export const quotaLeft = ref(remaining())
+
+/** 同步一次剩余（打开抽屉、收到服务端数据后调用） */
+export function refreshQuota() {
+  quotaLeft.value = remaining()
+}
+
 function handle(event: StreamEvent | null) {
   if (!event || !currentMsg) return
   if (event.type === 'sources') {
     currentMsg.sources = (event.data.sources as SearchResult[]) ?? []
+  } else if (event.type === 'quota') {
+    // 服务端带回来的权威剩余次数：覆盖本地，避免两边漂移
+    syncFromServer(Number(event.data.remaining))
+    quotaLeft.value = remaining()
   } else if (event.type === 'delta') {
     streamBuf += String(event.data.text ?? '')
     scheduleRender()
@@ -101,6 +115,22 @@ function handle(event: StreamEvent | null) {
 export async function ask(text = question.value) {
   const q = text.trim()
   if (!q || busy.value) return
+
+  // 游客本地配额：提前拦住并说明原因，别等发出去才被服务端拒。
+  // 这不是安全措施（清缓存就能绕过），服务端按 IP 仍有硬上限。
+  const guest = !localStorage.getItem('notes_blog_token')
+  if (guest && !canAsk()) {
+    messages.value.push({ id: ++idSeq, role: 'user', text: q })
+    messages.value.push({
+      id: ++idSeq,
+      role: 'assistant',
+      text: '',
+      error: '今天的提问次数已经用完了，明天再来。',
+    })
+    isOpen.value = true
+    return
+  }
+
   question.value = ''
   controller?.abort()
   controller = new AbortController()
@@ -128,8 +158,36 @@ export async function ask(text = question.value) {
       },
       body: JSON.stringify({ question: q }),
     })
+
+    // 429：配额用完。服务端这时还没开流，回的是普通 JSON。
+    // 必须单独处理——当成「生成失败」会让用户以为服务挂了。
+    if (response.status === 429) {
+      let message = '今天的提问次数已经用完了，明天再来。'
+      let resetSeconds = 0
+      try {
+        const body = (await response.json()) as {
+          message?: string
+          data?: { resetInSeconds?: number }
+        }
+        if (body.message) message = body.message
+        resetSeconds = Number(body.data?.resetInSeconds) || 0
+      } catch {
+        // JSON 解不出来就用默认文案，不影响主流程
+      }
+      syncFromServer(0)
+      quotaLeft.value = 0
+      msg.error = resetSeconds > 0 ? `${message}（约 ${Math.ceil(resetSeconds / 3600)} 小时后重置）` : message
+      finishMessage()
+      return
+    }
     if (response.status === 401) throw new Error('登录已过期，请重新登录')
     if (!response.ok || !response.body) throw new Error(`问答服务返回 ${response.status}`)
+
+    // 请求已被服务端接受，记一次本地用量
+    if (guest) {
+      consumeLocally()
+      quotaLeft.value = remaining()
+    }
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()

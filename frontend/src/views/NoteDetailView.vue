@@ -12,6 +12,7 @@ import {
   type RelatedNote,
 } from '../api/notes'
 import { isLoggedIn } from '../api/auth'
+import CommentList from '../components/CommentList.vue'
 import { buildOutline, renderMarkdown, type OutlineItem } from '../lib/markdown'
 import { notify } from '../lib/feedback'
 import { openDrawer } from '../lib/askState'
@@ -302,6 +303,10 @@ onBeforeUnmount(() => {
             </RouterLink>
           </div>
         </section>
+
+        <!-- 评论只出现在公开文章下：/notes/:slug 是管理员的私有视图，
+             在那里显示公开评论区会让人以为游客能看到草稿 -->
+        <CommentList v-if="isPublicRoute && note" :slug="note.slug" />
       </template>
     </section>
 

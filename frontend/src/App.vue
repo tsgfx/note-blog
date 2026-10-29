@@ -86,6 +86,7 @@ function signOut() {
             <span class="sparkle" aria-hidden="true">✦</span> 问答
           </button>
           <RouterLink class="btn btn-ghost btn-sm" to="/editor/new">写笔记</RouterLink>
+          <RouterLink class="btn-text-link" to="/admin/comments">评论</RouterLink>
           <RouterLink class="btn-text-link" to="/admin/audit">操作日志</RouterLink>
           <RouterLink class="btn-text-link" to="/settings">设置</RouterLink>
           <button
@@ -108,6 +109,17 @@ function signOut() {
           <button class="btn-text-link" type="button" @click="signOut">退出</button>
         </template>
         <template v-else>
+          <!-- 游客也能问答（每日有限次）。放在这里而不是只在登录后显示，
+               是因为「允许游客进行问答」就是这次要的功能 -->
+          <button
+            class="btn btn-ghost btn-sm btn-ask-trigger"
+            type="button"
+            :class="{ 'btn-ask-active': isOpen }"
+            title="问这座博客里的文章"
+            @click="toggleDrawer"
+          >
+            <span class="sparkle" aria-hidden="true">✦</span> 问答
+          </button>
           <button
             class="btn-text-link icon-link"
             type="button"

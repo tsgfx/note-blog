@@ -88,6 +88,37 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   KEY idx_audit_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── 游客评论 ──────────────────────────────────────────────────
+-- 默认可见，管理员可隐藏（status=HIDDEN，软隐藏）或删除。
+-- nickname 当前恒为 NULL（游客统一显示「访客」），留列是为了以后想开昵称时不用改表。
+-- 定义必须与 db/migrations/004 及 SchemaUpgrade 保持一致。
+CREATE TABLE IF NOT EXISTS comments (
+  id         BIGINT       NOT NULL AUTO_INCREMENT,
+  note_id    BIGINT       NOT NULL,
+  nickname   VARCHAR(32)  DEFAULT NULL,
+  content    VARCHAR(2000) NOT NULL,
+  status     VARCHAR(16)  NOT NULL DEFAULT 'VISIBLE',
+  client_ip  VARCHAR(64)  DEFAULT NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_comments_note (note_id, status, created_at),
+  KEY idx_comments_created (created_at),
+  CONSTRAINT fk_comments_note FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── 游客每日问答配额 ─────────────────────────────────────────
+-- 主键 (client_ip, day)：用 INSERT ... ON DUPLICATE KEY UPDATE 一条语句
+-- 原子地「加一并读回」，避免先查再改在并发下多放行。
+-- 与内存版 RateLimiter 的区别：这个落库，进程重启不清零。
+CREATE TABLE IF NOT EXISTS guest_daily_usage (
+  client_ip VARCHAR(64) NOT NULL,
+  day       DATE        NOT NULL,
+  used      INT         NOT NULL DEFAULT 0,
+  PRIMARY KEY (client_ip, day),
+  KEY idx_gdu_day (day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── 订阅额度仪表盘：账号元数据 ──────────────────────────────
 -- 注意：额度看板功能已于 2026-10-29 移除，这 4 张表保留但不再生效，
 -- 只为不丢历史数据；新部署不需要它们，删表也不影响应用。

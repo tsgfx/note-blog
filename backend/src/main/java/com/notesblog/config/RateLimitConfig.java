@@ -31,7 +31,19 @@ public class RateLimitConfig implements WebMvcConfigurer {
 
     private final ObjectProvider<RateLimiter> rateLimiterProvider;
 
-    @Value("${app.rate-limit.ask-per-minute:10}")
+    /**
+     * 匿名问答的每分钟上限。
+     *
+     * <p>这是「防脚本瞬时刷」的兜底，不是主要约束——主要约束是
+     * {@code GuestQuotaService} 的每日上限（落库、重启不清零）。
+     * 必须大于等于每日上限，否则游客会先看到「请 60 秒后再试」而不是
+     * 「今天的次数用完了」，语义莫名其妙。
+     *
+     * <p>默认值必须与 application.yml 一致：注解里的默认值只在 application.yml
+     * 缺这个键时生效，两处不一致会出现「配置写 20、实际按 10 跑」这种
+     * 只有读代码才能发现的偏差（本地端到端实测踩过）。
+     */
+    @Value("${app.rate-limit.ask-per-minute:25}")
     private int askPerMinute;
 
     @Value("${app.rate-limit.search-per-minute:60}")

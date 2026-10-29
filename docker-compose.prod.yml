@@ -108,8 +108,15 @@ services:
       APP_VERSION: ${APP_VERSION:-dev}
       # 生产务必精确列域名，不要 http://localhost:[*] 这类开发默认值
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?生产环境必须在 .env 里设置 CORS_ALLOWED_ORIGINS}
-      RATE_LIMIT_ASK: ${RATE_LIMIT_ASK:-10}
+      # 每分钟限流（只对匿名调用者生效，管理员放行——见 RateLimitInterceptor）
+      # ask 的值必须 >= GUEST_ASK_IP_DAILY_CEILING，否则游客会先撞「请 60 秒后再试」
+      # 而不是「今天的次数用完了」。端到端实测过：10 对 15 时第 11 次就被分钟限流拦。
+      RATE_LIMIT_ASK: ${RATE_LIMIT_ASK:-25}
       RATE_LIMIT_SEARCH: ${RATE_LIMIT_SEARCH:-60}
+      # 游客每日问答：5 是对单浏览器的承诺值（前端显示剩余），15 是按 IP 的服务端硬上限
+      # （共享出口 IP 的误伤余量，落库、重启不清零）
+      GUEST_ASK_DAILY_ALLOWANCE: ${GUEST_ASK_DAILY_ALLOWANCE:-5}
+      GUEST_ASK_IP_DAILY_CEILING: ${GUEST_ASK_IP_DAILY_CEILING:-15}
       ASSETS_ROOT: /data/assets
     volumes:
       - ./storage/assets:/data/assets

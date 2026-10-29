@@ -37,6 +37,53 @@ public class SchemaUpgrade implements ApplicationRunner {
         upgradeTokenVersion();
         upgradeNoteEditFlag();
         upgradeUsageTables();
+        upgradeCommentsAndGuestQuota();
+    }
+
+    /**
+     * 游客评论与每日配额表。
+     *
+     * <p>和 {@link #upgradeUsageTables()} 同样的道理：{@code db/schema.sql} 只在
+     * 空数据目录时执行一次，已有数据的库拿不到新表。缺表时评论接口会 500，
+     * 每日配额会直接抛 SQL 异常，所以启动时补上，而不是等第一个游客踩。
+     */
+    private void upgradeCommentsAndGuestQuota() {
+        if (tableExists("comments") && tableExists("guest_daily_usage")) {
+            return;
+        }
+        try {
+            jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS comments (
+                  id         BIGINT       NOT NULL AUTO_INCREMENT,
+                  note_id    BIGINT       NOT NULL,
+                  nickname   VARCHAR(32)  DEFAULT NULL,
+                  content    VARCHAR(2000) NOT NULL,
+                  status     VARCHAR(16)  NOT NULL DEFAULT 'VISIBLE',
+                  client_ip  VARCHAR(64)  DEFAULT NULL,
+                  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (id),
+                  KEY idx_comments_note (note_id, status, created_at),
+                  KEY idx_comments_created (created_at),
+                  CONSTRAINT fk_comments_note FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+            jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS guest_daily_usage (
+                  client_ip VARCHAR(64) NOT NULL,
+                  day       DATE        NOT NULL,
+                  used      INT         NOT NULL DEFAULT 0,
+                  PRIMARY KEY (client_ip, day),
+                  KEY idx_gdu_day (day)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+            log.info("schema_upgraded comments, guest_daily_usage");
+        } catch (DataAccessException e) {
+            throw new IllegalStateException(
+                    "无法自动创建评论与配额表，请手工执行 db/migrations/004_add_comments_and_guest_quota.sql", e);
+        }
     }
 
     private void upgradeTokenVersion() {

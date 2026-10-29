@@ -91,8 +91,20 @@ app:
   rate-limit:
     # 这两个接口是"贵"的：问答花 LLM token，搜索做向量检索。
     # 按客户端 IP 每分钟计数，超了返回 429 + Retry-After。
-    ask-per-minute: ${RATE_LIMIT_ASK:10}
+    #
+    # ask-per-minute 必须 >= app.guest.ask-ip-daily-ceiling，否则游客会先撞上
+    # 「请 60 秒后再试」而不是「今天的次数用完了」——语义不对，体验也莫名其妙。
+    # 端到端实测过：设成 10 而日上限 15 时，游客第 11 次就被分钟限流拦。
+    ask-per-minute: ${RATE_LIMIT_ASK:25}
     search-per-minute: ${RATE_LIMIT_SEARCH:60}
+
+  guest:
+    # 游客每日问答条数：对单个浏览器的承诺值，前端据此显示「还可提问 N 次」。
+    ask-daily-allowance: ${GUEST_ASK_DAILY_ALLOWANCE:5}
+    # 游客每日问答条数的服务端硬上限（按 IP），落库、重启不清零。
+    # 刻意大于上面的承诺值：手机流量与不少宽带是共享出口 IP，
+    # 严格按承诺值会让别人问不了。前端已经把单浏览器压到承诺值了。
+    ask-ip-daily-ceiling: ${GUEST_ASK_IP_DAILY_CEILING:15}
 
 logging:
   level:

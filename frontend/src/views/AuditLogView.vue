@@ -16,6 +16,9 @@ const ACTIONS: Record<string, string> = {
   NOTE_BATCH_UNPUBLISH: '批量下线',
   ASSET_UPLOAD: '上传图片',
   PASSWORD_CHANGE: '修改密码',
+  COMMENT_VISIBLE: '恢复评论可见',
+  COMMENT_HIDDEN: '隐藏评论',
+  COMMENT_DELETE: '删除评论',
 }
 
 const logs = ref<AuditLog[]>([])

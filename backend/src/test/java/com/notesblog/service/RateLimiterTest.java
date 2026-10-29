@@ -71,6 +71,29 @@ class RateLimiterTest {
         assertThat(decision.retryAfterSeconds()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("日窗口过了 1 小时仍不会被清理：清掉等于额度被重置")
+    void dayWindowSurvivesPurge() {
+        Duration day = Duration.ofDays(1);
+        // 打满一个日窗口（3 次）
+        for (int i = 0; i < 3; i++) {
+            assertThat(limiter.acquire("c", 3, day).allowed()).as("第 %s 次", i + 1).isTrue();
+        }
+        // 让这个窗口「老」1 小时零 1 分：不足 1 天（仍有效），但超过原来那条
+        // 「1 小时没动就清」的固定阈值——这正是旧实现会误删的条件
+        clock.advance(Duration.ofMinutes(61));
+
+        // 塞满条目越过 MAX_ENTRIES（10000），并制造一次拒绝以触发清理
+        for (int i = 0; i < 10_100; i++) {
+            limiter.acquire("filler:" + i, 100, day);
+        }
+        assertThat(limiter.acquire("trigger", 0, day).allowed()).isFalse();
+
+        // 日窗口仍应有效：第 4 次必须被拦。
+        // 旧实现按固定 1 小时判过期，这里会被清掉、额度重置成 0 次 → 测试变红。
+        assertThat(limiter.acquire("c", 3, day).allowed()).isFalse();
+    }
+
     private static final class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-10-23T12:00:00Z");
 

@@ -70,6 +70,12 @@ const router = createRouter({
       meta: { title: '操作日志' },
     },
     {
+      path: '/admin/comments',
+      name: 'comments-admin',
+      component: () => import('../views/CommentsView.vue'),
+      meta: { title: '评论管理' },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),

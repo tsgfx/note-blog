@@ -14,11 +14,14 @@ import {
   isOpen,
   messages,
   question,
+  quotaLeft,
+  refreshQuota,
   snippet,
   stage,
   streamingId,
   stop,
 } from '../lib/askState'
+import { isLoggedIn } from '../api/auth'
 
 const router = useRouter()
 const inputEl = ref<HTMLTextAreaElement>()
@@ -138,8 +141,10 @@ function selectSource(source: SearchResult) {
   if (window.innerWidth < 768) {
     closeDrawer()
   }
+  // 游客只能看公开文章：检索结果本来就只含已发布内容，
+  // 跳到 /notes/:slug（需登录）会把人弹去登录页，应走公开的 /blog/:slug
   void router.push({
-    name: 'note-detail',
+    name: isLoggedIn() ? 'note-detail' : 'blog-detail',
     params: { slug: source.slug },
     query: source.heading ? { heading: source.heading } : {},
   })
@@ -147,9 +152,18 @@ function selectSource(source: SearchResult) {
 
 const sendDisabled = computed(() => busy.value || !question.value.trim())
 
+/** 游客（未登录）：显示剩余次数、提示限次，且检索范围只有已发布文章 */
+const isGuest = computed(() => !isLoggedIn())
+
+// 抽屉打开时刷新一次剩余：用户可能在别的标签页用掉了今天的额度
+watch(isOpen, (open) => {
+  if (open) refreshQuota()
+})
+
 onMounted(() => {
   const saved = Number(localStorage.getItem(WIDTH_KEY))
   if (saved >= WIDTH_MIN) applyWidth(saved)
+  refreshQuota()
   window.addEventListener('keydown', onWindowKeydown)
 })
 onBeforeUnmount(() => {
@@ -308,7 +322,10 @@ onBeforeUnmount(() => {
               @keydown="onKey"
             />
             <div class="composer-bar">
-              <span class="composer-hint">依据笔记内容作答，可能出错，请核对出处</span>
+              <span class="composer-hint">
+                <template v-if="isGuest && quotaLeft >= 0"> 今日还可提问 {{ quotaLeft }} 次 </template>
+                <template v-else>依据笔记内容作答，可能出错，请核对出处</template>
+              </span>
               <button
                 v-if="busy"
                 class="composer-btn stop"

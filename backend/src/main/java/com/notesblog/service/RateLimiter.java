@@ -49,9 +49,9 @@ public class RateLimiter {
 
         Window current = windows.compute(key, (ignored, previous) -> {
             if (previous == null || now - previous.startMillis >= windowMillis) {
-                return new Window(now, 1);
+                return new Window(now, 1, windowMillis);
             }
-            return new Window(previous.startMillis, previous.count + 1);
+            return new Window(previous.startMillis, previous.count + 1, windowMillis);
         });
 
         if (current.count <= limit) {
@@ -65,14 +65,18 @@ public class RateLimiter {
 
     private void purgeIfCrowded(long now) {
         if (windows.size() <= MAX_ENTRIES) return;
-        // 窗口最长按 1 小时粗算，超过 1 小时没动过的条目一定过期
-        long staleBefore = now - Duration.ofHours(1).toMillis();
-        windows.entrySet().removeIf(entry -> entry.getValue().startMillis < staleBefore);
+        // 按条目自己的窗口长度判断过期，不能用固定值：
+        // 这里同时有 1 分钟（问答/搜索）和 1 天（评论）两种窗口，
+        // 固定「1 小时」会把还在生效的日窗口当成垃圾清掉——等于额度被重置。
+        windows.entrySet().removeIf(entry -> {
+            Window w = entry.getValue();
+            return now - w.startMillis >= w.windowMillis;
+        });
     }
 
     public record Decision(boolean allowed, long retryAfterSeconds) {
     }
 
-    private record Window(long startMillis, int count) {
+    private record Window(long startMillis, int count, long windowMillis) {
     }
 }

@@ -41,7 +41,9 @@ class RelatedNoteServiceTest {
 
     private static VectorIndex.Chunk chunk(long id, long noteId, float[] vector) {
         VectorIndex.normalize(vector);
-        return new VectorIndex.Chunk(id, noteId, "t" + noteId, "slug-" + noteId, null, "c", "t c", vector);
+        // 这些用例只验相关笔记的相似度计算，与发布状态无关，一律标已发布
+        return new VectorIndex.Chunk(id, noteId, "t" + noteId, "slug-" + noteId, null, "c", "t c",
+                vector, true);
     }
 
     private static Note note(long id, String title) {
