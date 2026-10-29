@@ -1,0 +1,104 @@
+name: Uptime
+
+# 云端可用性探针：每 10 分钟打一次 /api/health 与首页，失败即让 job 变红。
+# job 变红时 GitHub 会给仓库所有者的通知渠道发邮件 —— 不需要额外注册监控服务。
+#
+# 为什么不用 UptimeRobot / Cloudflare Healthcheck：
+#   那两个要注册外部账号、把 URL 抄到别人家的控制台里；规则也就离开了仓库。
+#   这里探的地址、判据、告警方式都跟着代码走，改一行就能调。
+#
+# 两个必须知道的局限（都写在明处）：
+#   1. **定时任务会被自动停用**：仓库连续 60 天没有提交，GitHub 会暂停 schedule。
+#      收到「workflow disabled」邮件后，手动点一次 Run workflow 即可恢复。
+#   2. **cron 是尽力而为**：高峰期可能延迟几分钟到十几分钟，不能当 SLA 监控用。
+#      个人博客够用；真要求分钟级精确告警还是得上专业服务。
+#
+# 失败判据（缺一不可）：
+#   - /api/health 的 HTTP 状态是 200，且 body 里含 "status":"up"
+#     （这个接口**永远**回 200，服务坏了也是 200，所以必须看 body）
+#   - 首页 / 回 200
+# 每个目标重试 2 次共 3 次，避免一次网络抖动就报警。
+
+on:
+  schedule:
+    # 每 10 分钟。GitHub 的 cron 用 UTC，但这个表达式每个小时的每个 10 分钟都跑，
+    # 与时区无关，所以不用换算。
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # 手动触发，改完之后先手动跑一次验证
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: 探活
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 探测 /api/health 与首页
+        env:
+          # 站点地址放仓库变量（Settings → Secrets and variables → Actions → Variables），
+          # 不写进代码：换域名 / 换 IP 只改一处，也不用为了改地址提一次 commit。
+          BASE_URL: ${{ vars.SITE_BASE_URL }}
+        run: |
+          set -u
+          if [ -z "${BASE_URL:-}" ]; then
+            echo "✗ 仓库变量 SITE_BASE_URL 未设置" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "  设置位置：Settings → Secrets and variables → Actions → Variables" >&2
+            exit 1
+          fi
+          echo "探测目标：$BASE_URL"
+          retry() {
+            # $1=描述，$2=判据命令（返回 0 即通过）
+            desc="$1"; shift
+            for i in 1 2 3; do
+              if "$@"; then
+                echo "✓ ${desc}（第 ${i} 次）"
+                return 0
+              fi
+              echo "… ${desc} 第 ${i} 次未通过"
+              [ "$i" -lt 3 ] && sleep 10
+            done
+            echo "✗ ${desc}：连续 3 次失败"
+            return 1
+          }
+
+          check_health() {
+            body=$(curl -sS --max-time 15 -w '\n%{http_code}' "$BASE_URL/api/health" || true)
+            code=$(printf '%s' "$body" | tail -1)
+            payload=$(printf '%s' "$body" | sed '$d')
+            echo "  health: HTTP $code  $payload"
+            [ "$code" = "200" ] || return 1
+            # 接口永远回 200，状态在 body.status 里
+            printf '%s' "$payload" | grep -q '"status":"up"'
+          }
+
+          check_home() {
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$BASE_URL/" || echo 000)
+            echo "  首页: HTTP $code"
+            [ "$code" = "200" ]
+          }
+
+          rc=0
+          retry "后端健康检查" check_health || rc=1
+          retry "首页可访问" check_home || rc=1
+
+          if [ "$rc" -ne 0 ]; then
+            {
+              echo "## 云端探活失败"
+              echo ""
+              echo "站点：$BASE_URL"
+              echo "时间：$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+              echo ""
+              echo "排查顺序："
+              echo '1. `curl -s $BASE_URL/api/health` 看 body.status'
+              echo '2. 服务器上 `cd /opt/note-blog && docker compose -f docker-compose.prod.yml ps`'
+              echo '3. `docker compose -f docker-compose.prod.yml logs --tail=100 backend`'
+            } >>"$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "✓ 全部通过" >>"$GITHUB_STEP_SUMMARY"
