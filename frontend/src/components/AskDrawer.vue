@@ -192,8 +192,11 @@ onBeforeUnmount(() => {
             <div class="drawer-title-group">
               <span class="drawer-badge" aria-hidden="true">✦</span>
               <div>
-                <h2 class="drawer-title">问你的笔记</h2>
-                <p class="drawer-subtitle">检索全库笔记 · 流式作答 · 附出处</p>
+                <h2 class="drawer-title">{{ isGuest ? '问这座博客' : '问你的笔记' }}</h2>
+                <!-- 文案随身份变：游客只能检索已发布文章，写「全库」是错的 -->
+                <p class="drawer-subtitle">
+                  {{ isGuest ? '检索已发布文章 · 流式作答 · 附出处' : '检索全库笔记 · 流式作答 · 附出处' }}
+                </p>
               </div>
             </div>
             <div class="header-actions">
@@ -318,7 +321,9 @@ onBeforeUnmount(() => {
               v-model="question"
               class="composer-input"
               rows="1"
-              placeholder="向全库笔记提问…（Enter 发送，Shift+Enter 换行）"
+              :placeholder="
+                isGuest ? '向已发布文章提问…（Enter 发送）' : '向全库笔记提问…（Enter 发送，Shift+Enter 换行）'
+              "
               @keydown="onKey"
             />
             <div class="composer-bar">
