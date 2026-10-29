@@ -13,6 +13,12 @@ name: Uptime
 #   2. **cron 是尽力而为**：高峰期可能延迟几分钟到十几分钟，不能当 SLA 监控用。
 #      个人博客够用；真要求分钟级精确告警还是得上专业服务。
 #
+# 已经踩过的一个坑：新建仓库后 schedule 可能长时间一次都不触发（对新建仓库
+# 有启用延迟，也有人报过要等几天）。**手动 dispatch 成功不能说明 cron 也活着**——
+# 这两条触发路径是分开的。判断依据只能看运行列表里有没有 event=schedule 的记录：
+#   curl -s "https://api.github.com/repos/<owner>/<repo>/actions/workflows/uptime.yml/runs"
+# 如果一直没有，改一下本文件任意一个字并推送，能强制 GitHub 重新注册该工作流。
+#
 # 失败判据（缺一不可）：
 #   - /api/health 的 HTTP 状态是 200，且 body 里含 "status":"up"
 #     （这个接口**永远**回 200，服务坏了也是 200，所以必须看 body）
@@ -21,9 +27,10 @@ name: Uptime
 
 on:
   schedule:
-    # 每 10 分钟。GitHub 的 cron 用 UTC，但这个表达式每个小时的每个 10 分钟都跑，
-    # 与时区无关，所以不用换算。
-    - cron: '*/10 * * * *'
+    # 每 10 分钟，但错开 :00 / :10 / :20 这些整十点。
+    # GitHub 官方的说法是这个点最拥挤、最容易延迟甚至丢弃，所以挑每十分钟的第 3 分钟。
+    # 时区无关（每小时都是同样几个分钟位），不用换算成 UTC。
+    - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch: # 手动触发，改完之后先手动跑一次验证
 
 permissions:
