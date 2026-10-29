@@ -5,7 +5,9 @@
   COS_SECRET_ID=xxx COS_SECRET_KEY=xxx python3 scripts/cos-upload.py \
       --dir storage/assets --bucket note-blog-img-1324019419 --region ap-beijing
 
-  加 --prefix backups/ 可把对象放到指定前缀下（异地备份用）。
+备份上云（对象标记 private，不依赖桶的可见性）：
+  python3 scripts/cos-upload.py --dir /tmp/enc --bucket ... --prefix backups/ \
+      --acl private --signed-head --workers 1
 
 特性：
 - 幂等续传：先 HEAD 对比大小，一致就跳过，中断后重跑即可
@@ -42,6 +44,13 @@ def main():
     ap.add_argument("--region", default="ap-beijing")
     ap.add_argument("--prefix", default="", help="对象键前缀，如 backups/")
     ap.add_argument("--workers", type=int, default=8)
+    # 对象的 ACL：默认 default（跟随桶的读写权限）。
+    # 备份上云时传 private，**不依赖桶本身的可见性**——
+    # 万一桶是公有读的，标记 private 的对象也不会被匿名 GET 到。
+    ap.add_argument("--acl", default="default", choices=["default", "private"])
+    # 增量判断用 HEAD。公有读桶匿名就能 HEAD；私有对象必须带签名，否则一律 403。
+    ap.add_argument("--signed-head", action="store_true",
+                    help="用签名 HEAD 做增量判断（目标对象为 private 或桶非公有读时用）")
     args = ap.parse_args()
 
     sid = os.environ.get("COS_SECRET_ID", "")
@@ -60,19 +69,23 @@ def main():
             prefix += "/"
         return prefix + p.relative_to(root).as_posix()
 
-    # 先做增量判断（HEAD 公有读桶即可）
+    # 先做增量判断（默认匿名 HEAD，公有读桶即可）
     todo, skipped = [], 0
     for p in files:
         key = rel(p)
         try:
             # 请求 URL 必须百分号编码（路径含中文）；签名用原始 key
-            req = urllib.request.Request(f"https://{host}/{quote(key)}", method="HEAD")
+            headers = {}
+            if args.signed_head:
+                headers["Authorization"] = sign("head", key, sid, skey)
+            req = urllib.request.Request(f"https://{host}/{quote(key)}", method="HEAD",
+                                         headers=headers)
             with urllib.request.urlopen(req, timeout=10) as r:
                 if int(r.headers.get("Content-Length", -1)) == p.stat().st_size:
                     skipped += 1
                     continue
         except urllib.error.HTTPError as e:
-            if e.code != 404:
+            if e.code not in (403, 404):
                 print(f"HEAD 异常 {key}: {e.code}")
         except Exception:
             pass
@@ -85,9 +98,12 @@ def main():
     def upload(p):
         key = rel(p)
         auth = sign("put", key, sid, skey)
+        headers = {"Authorization": auth, "Content-Type": "application/octet-stream"}
+        if args.acl != "default":
+            headers["x-cos-acl"] = args.acl
         req = urllib.request.Request(
             f"https://{host}/{quote(key)}", data=p.read_bytes(), method="PUT",
-            headers={"Authorization": auth, "Content-Type": "application/octet-stream"})
+            headers=headers)
         with urllib.request.urlopen(req, timeout=120):
             return key
 

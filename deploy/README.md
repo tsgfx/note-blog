@@ -158,7 +158,7 @@ sh /opt/note-blog/scripts/backup-cloud.sh
 cat > /opt/note-blog/.backup-cos.env <<'EOF'
 COS_SECRET_ID=...
 COS_SECRET_KEY=...
-COS_BUCKET=note-blog-img-1324019419
+COS_BUCKET=你的备份私有桶
 COS_REGION=ap-beijing
 COS_BACKUP_PREFIX=backups/
 EOF
@@ -167,7 +167,13 @@ chmod 600 /opt/note-blog/.backup-cos.env
 # 加密口令（丢了就解不开，务必抄一份到密码管理器）
 openssl rand -base64 32 > /opt/note-blog/.backup-key
 chmod 600 /opt/note-blog/.backup-key
+sha256sum /opt/note-blog/.backup-key | cut -c1-16   # 抄进密码管理器，换机器时核对
 ```
+
+> **桶怎么选**：新建一个**私有**桶专放备份，不要复用图片桶。
+> 脚本本身做了两层保护——对象标 `--acl private` + 上传前 AES-256 加密——
+> 上传后还会匿名 HEAD 一次，只有拿到 403 才算成功（拿到 200 直接失败退出）。
+> 但把数据库 dump 放进公有读的桶这件事本身就不该是默认做法，桶这一层别省。
 
 没有这两个文件时上传步骤会自行跳过，备份仍留在本机。
 
