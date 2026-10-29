@@ -53,11 +53,14 @@ class RssControllerTest {
         note.setSummary(summary);
         note.setContentMd(content);
         note.setStatus(NoteStatus.PUBLISHED);
+        com.notesblog.domain.Tag tag = new com.notesblog.domain.Tag();
+        tag.setName("测试标签");
+        note.setTags(java.util.Set.of(tag));
         return note;
     }
 
     @Test
-    @DisplayName("正常输出 RSS，链接里不会出现双斜杠")
+    @DisplayName("正常输出 RSS，包含文章标签与无双斜杠的链接")
     void rendersFeed() throws Exception {
         when(noteRepository.findByStatus(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
                 .thenAnswer(invocation -> new PageImpl<>(
@@ -67,6 +70,7 @@ class RssControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/rss+xml"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>测试博客</title>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<category>测试标签</category>")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("http://notes.test/blog/s-标题一")));
     }
 

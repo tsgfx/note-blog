@@ -2,6 +2,7 @@ package com.notesblog.controller;
 
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
+import com.notesblog.domain.Tag;
 import com.notesblog.repository.NoteRepository;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -62,6 +63,13 @@ public class RssController {
                     .append("<description>").append(escape(description(note))).append("</description>\n");
             if (note.getPublishedAt() != null) {
                 xml.append("<pubDate>").append(rfc1123(note.getPublishedAt())).append("</pubDate>\n");
+            }
+            if (note.getTags() != null) {
+                for (Tag tag : note.getTags()) {
+                    if (tag.getName() != null && !tag.getName().isBlank()) {
+                        xml.append("<category>").append(escape(tag.getName())).append("</category>\n");
+                    }
+                }
             }
             xml.append("</item>\n");
         }
