@@ -40,6 +40,12 @@ fi
 : "${COS_BUCKET:?备份配置缺少 COS_BUCKET}"
 COS_REGION="${COS_REGION:-ap-beijing}"
 COS_BACKUP_PREFIX="${COS_BACKUP_PREFIX:-backups/}"
+# 规范成带尾斜杠：cos-upload.py 的 rel() 会自己补，但下面拼校验 URL 时不会，
+# 填成 `backups`（漏斜杠）就会去查 backupsNAME 这个不存在的键、误判上传失败。
+case "$COS_BACKUP_PREFIX" in
+  */) ;;
+  *) COS_BACKUP_PREFIX="${COS_BACKUP_PREFIX}/" ;;
+esac
 export COS_SECRET_ID COS_SECRET_KEY
 
 [ -f "$KEY" ] || {
