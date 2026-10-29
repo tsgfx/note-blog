@@ -72,7 +72,10 @@ python3 "$ROOT/scripts/cos-upload.py" \
 #   - 私有桶：同样 403
 # 如果这里回 200，说明 ACL 没生效（或桶策略覆盖了），要当失败处理。
 URL="https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com/${COS_BACKUP_PREFIX}${NAME}"
-CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -I "$URL" || echo 000)
+# 注意别写成 `curl ... || echo 000`：curl 连接失败时 -w 已经会输出 000，
+# 再 echo 一个就拼成 "000000"，落不进下面的 000 分支，反而走 *) 报「数据暴露」。
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -I "$URL" || true)
+[ -n "$CODE" ] || CODE=000
 case "$CODE" in
   403) say "匿名访问校验通过（HTTP 403，未授权读不到）" ;;
   404) say "匿名访问校验：对象不存在？检查上传结果（HTTP 404）" && exit 1 ;;

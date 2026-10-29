@@ -78,7 +78,9 @@ jobs:
           }
 
           check_home() {
-            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$BASE_URL/" || echo 000)
+            # 别写 `curl ... || echo 000`：失败时 -w 已输出 000，会拼成 000000
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$BASE_URL/" || true)
+            [ -n "$code" ] || code=000
             echo "  首页: HTTP $code"
             [ "$code" = "200" ]
           }
