@@ -413,8 +413,7 @@ onBeforeUnmount(() => {
   transition: background-color var(--dur-1) var(--ease-soft);
 }
 
-.drawer-resize-handle:hover::after,
-:global(body.drawer-resizing) .drawer-resize-handle::after {
+.drawer-resize-handle:hover::after {
   background: var(--pen);
   opacity: 0.4;
 }
@@ -1051,5 +1050,16 @@ body.drawer-resizing {
 body.drawer-resizing .main,
 body.drawer-resizing .topbar {
   transition: none !important;
+}
+
+/*
+ * 拖拽期间把手亮起。这条必须放非 scoped 块：scoped 里写
+ * `:global(body.drawer-resizing) .drawer-resize-handle::after` 编译后会退化成
+ * `body.drawer-resizing` 一个选择器（组内其余部分被丢掉，vue/sfc 的已知坑），
+ * 于是 background/opacity 直接糊上整个 body —— 整页蒙一层深绿，就是线上那个 bug。
+ */
+body.drawer-resizing .drawer-resize-handle::after {
+  background: var(--pen);
+  opacity: 0.4;
 }
 </style>
