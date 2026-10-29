@@ -47,7 +47,27 @@ fi
 
 PREV=$(git rev-parse HEAD)
 info "拉取 origin"
-git pull --ff-only
+# 国内到 GitHub 的 TLS 会话会被随机掐断（实测 GnuTLS recv error -110 与
+# 133 秒后 Couldn't connect 交替出现，隔几秒重试就通）。一次失败就中止会让
+# 部署变成「多试几次」，所以这里自己重试，而不是把抖动留给人工判断。
+MAX_PULL_ATTEMPTS="${MAX_PULL_ATTEMPTS:-4}"
+try_pull() {
+  i=1
+  while [ "$i" -le "$MAX_PULL_ATTEMPTS" ]; do
+    if git pull --ff-only; then
+      return 0
+    fi
+    [ "$i" -lt "$MAX_PULL_ATTEMPTS" ] || break
+    warn "第 ${i} 次拉取失败，$((i * 10)) 秒后重试"
+    sleep $((i * 10))
+    i=$((i + 1))
+  done
+  return 1
+}
+
+try_pull || die "拉取失败：连续 ${MAX_PULL_ATTEMPTS} 次都连不上 GitHub（网络问题，不是代码问题）
+  自查：curl -sI --max-time 10 https://github.com | head -1
+  彻底不通时只能从别处推：在本机 git push 后，用 ssh 把裸仓库传上来再 fetch"
 NEW=$(git rev-parse HEAD)
 
 if [ "$PREV" = "$NEW" ]; then
