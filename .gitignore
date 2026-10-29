@@ -26,6 +26,17 @@ backups/
 export/
 storage/
 
+# CLI 凭证目录：曾经由本机 rsync 上来给额度看板用，功能已移除，留规则防误提交
+credentials/
+
+# 服务器上的本地凭证与配置（COS 备份密钥等），永不入库
+.backup-key
+.backup-cos.env
+.deployed-version
+
+# macOS 在 tar/scp 时留下的 AppleDouble 垃圾
+._*
+
 # 本地临时凭据（改完密码请删掉）
 .new-admin-password.txt
 
