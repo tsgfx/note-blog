@@ -13,7 +13,7 @@
 | 前端 | Vue 3 + Vite + TypeScript + Pinia + Vue Router（样式手写，设计令牌在 `src/style.css`） |
 | 后端 | Spring Boot 3.5（Java 21）+ Spring Security + Spring Data JPA |
 | 数据库 | MySQL 9（`VECTOR(1024)` 原生向量列） |
-| 本地 AI | Ollama + `bge-m3`（向量）；OpenCode Go 网关（问答 LLM） |
+| AI | 向量用 `bge-m3`（本地 Ollama 或硅基流动）；问答 LLM 走任意 OpenAI 兼容端点 |
 
 > 前端**没有**用 Element Plus 之类的组件库：所有界面元素都是手写 CSS，颜色/字体/间距集中定义在设计令牌里（见「界面」一节）。
 
@@ -36,9 +36,13 @@ note-blog/
 │       ├── components/    全局组件（提示、确认框）
 │       ├── lib/           主题、Markdown、剪贴板等工具
 │       ├── router/        路由
-│       └── views/         问答 / 笔记 / 博客 / 登录 / 审计
+│       └── views/         问答 / 笔记 / 博客 / 登录 / 审计 / 设置
 ├── db/          schema.sql（表结构）、provision.sql（建库建号）
-├── scripts/     backup.sh、deploy.sh、export_markdown.py；一次性迁移脚本在 archive/
+├── deploy/      生产编排与主机规则：Caddyfile、nginx/edge.conf、
+│                rules/（ufw / sshd / fail2ban）、apply.sh、up.sh、
+│                pull-deploy.sh（服务器上发版）、verify.sh
+├── docs/        部署与排错文档、路线图
+├── scripts/     backup*.sh、export_markdown.py；一次性迁移脚本在 archive/
 └── .env.example 本地配置模板（复制成 .env 后填值）
 ```
 
@@ -148,7 +152,7 @@ cd /opt/note-blog && sh deploy/pull-deploy.sh
 | **M1** | 查：导入 695 篇笔记 + 4715 条向量；语义检索；原文定位 | ✅ |
 | **M2** | 写：笔记 CRUD、Markdown 编辑（实时预览）、标签 | ✅ |
 | **M3** | 发布：草稿→发布、slug、JWT 登录、公开博客页、自动向量重建 | ✅ |
-| **M4** | 问答：RAG 流式问答（Java + Ollama + OpenCode Go） | ✅ |
+| **M4** | 问答：RAG 流式问答（Spring AI 风格 SSE + bge-m3 + OpenAI 兼容 LLM） | ✅ |
 | **M4.1** | 图片：迁移 2236 张旧图到 `storage/assets`，改写 311 篇笔记链接，编辑器支持上传 | ✅ |
 | **M5** | 打磨：RSS、导出 Markdown 回 Obsidian、备份、操作日志 | ✅ |
 | **M6** | 多级目录：左侧目录树（可折叠、带篇数）、按任意层级筛选、`?path=` 可分享 | ✅ |
@@ -200,7 +204,7 @@ DB_PASSWORD='...' python3 scripts/export_markdown.py
 
 > 图片迁移：`python3 scripts/archive/import_assets.py --apply`（默认预览）。原语雀导出中有 12 处图片引用在 vault 里本就不存在（集中在 Git 教程、Redis 教程、数学建模等笔记），保留原链接，页面显示为破损图标。
 
-> 编辑或新建笔记后会异步切块并调用 Ollama 重建向量；重建期间该笔记短暂不会出现在语义搜索结果中。
+> 编辑或新建笔记后会异步切块并重建向量；重建期间该笔记短暂不会出现在语义搜索结果中。
 
 ## 配置说明
 
@@ -208,14 +212,21 @@ DB_PASSWORD='...' python3 scripts/export_markdown.py
 
 ```yaml
 notes:
-  ollama:
-    base-url: http://localhost:11434
-    embed-model: bge-m3
+  embedding:
+    # ollama（默认）：本地 Ollama，api-key 留空
+    # openai：任意 OpenAI 兼容服务（如硅基流动），model 写完整 id，api-key 必填
+    backend: ${EMBEDDING_BACKEND:ollama}
+    base-url: ${EMBEDDING_BASE_URL:http://localhost:11434}
+    model: ${EMBEDDING_MODEL:bge-m3}
+    api-key: ${EMBEDDING_API_KEY:}
   llm:
-    base-url: https://opencode.ai/zen/go/v1
-    model: minimax-m3
+    base-url: ${LLM_BASE_URL:https://opencode.ai/zen/go/v1}
+    model: ${LLM_MODEL:minimax-m3}
     api-key: ${LLM_API_KEY:}   # 用环境变量注入，别写进仓库
 ```
+
+> 向量模型必须与建库时一致（`bge-m3`，1024 维），换模型等于换向量空间，检索会全废。
+> 本地 Ollama 与硅基流动的 `bge-m3` 向量互通，可以在两者之间切换而不用重建索引。
 
 项目的 `.env` 保存全部本地配置（密钥、管理员密码、JWT 密钥、模型与向量后端地址）。
 `.env` 已加入 `.gitignore`，不会被提交；首次使用从模板复制：
@@ -263,21 +274,29 @@ cp .env.example .env
 | GET | `/api/notes/libraries` | 只有第一层的库名与篇数（旧接口，保留兼容） |
 | GET | `/api/notes/tags` | 标签与篇数，可传 `path` 只统计该目录 |
 | GET | `/api/notes/{slug}` | 笔记详情 |
+| GET | `/api/notes/{id}/related` | 相关笔记（分片向量均值比对，不调 embedding） |
 | POST | `/api/notes` | 新建笔记（草稿） |
 | PATCH | `/api/notes/{id}` | 更新笔记，改正文会触发向量重建 |
-| DELETE | `/api/notes/{id}` | 删除笔记 |
+| DELETE | `/api/notes/{id}` | 删除笔记（同时清掉该笔记的分片） |
 | POST | `/api/notes/{id}/publish` | 发布 |
 | POST | `/api/notes/{id}/unpublish` | 下线回草稿 |
 | POST | `/api/notes/batch/publish` | 批量发布（≤200 篇，返回逐条跳过原因） |
 | POST | `/api/notes/batch/unpublish` | 批量下线（≤200 篇） |
+| POST | `/api/notes/preflight` | 批量发布前预检（空正文阻断 / 密钥、手机号告警） |
+| POST | `/api/notes/{id}/generate-meta` | 自动生成摘要与标签（`force=true` 全量重写） |
+| POST | `/api/notes/generate-meta/batch` | 批量补齐摘要与标签 |
+| POST | `/api/notes/reindex` | 重建向量索引（返回剩余待处理数） |
 | POST | `/api/search` | 混合检索，返回命中的分片 |
 | POST | `/api/ask` | RAG 问答，SSE 流式 |
-| GET | `/api/assets/**` | 图片读取（公开） |
+| GET | `/api/assets/**` | 图片读取（公开；匿名只放行已发布文章引用的图） |
 | POST | `/api/assets` | 上传图片（multipart，仅 png/jpg/gif/webp，≤10MB） |
 | GET | `/api/blog/posts` | 已发布文章列表（公开） |
 | GET | `/api/blog/posts/{slug}` | 已发布文章详情（公开） |
 | GET | `/api/blog/rss.xml` | RSS 2.0（公开） |
+| GET | `/api/blog/sitemap.xml` | sitemap（公开） |
+| GET | `/api/blog/robots.txt` | robots.txt（公开） |
 | GET | `/api/admin/audit-logs` | 操作日志（仅管理员） |
+| GET | `/api/system/backup` | 备份状态：最近成功时间、体积、份数（需登录） |
 
 > `/api/auth/**` 是 `permitAll`，只放匿名入口（登录）。任何需要身份的写操作
 > 必须挂在 `/api/account/**` 下——这条约束写在 `SecurityConfig` 的类注释里，也有测试守着。
