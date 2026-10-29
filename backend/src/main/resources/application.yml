@@ -41,6 +41,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # 标签集合是 @ManyToMany(fetch = LAZY)，列表接口一页 40 条就是 40 次独立查询
+        # （实测 40 条/页 = 42 条 SQL，100 条/页 = 102 条）。开批量抓取后压到 3~4 条。
+        # 只在 yml 里写：用 SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_BATCH_FETCH_SIZE
+        # 注入会被宽松绑定转成 hibernate.default.batch.fetch.size，属性绑不上。
+        default_batch_fetch_size: 50
   jackson:
     default-property-inclusion: non_null
 

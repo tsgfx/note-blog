@@ -96,7 +96,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.notesblog.vite-dev.p
 ## 开发命令
 
 ```bash
-# 后端测试：183 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
+# 后端测试：189 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
 cd backend && mvn test
 
 # 前端检查
