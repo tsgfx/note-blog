@@ -1,0 +1,36 @@
+# 生产边缘：TLS 终止 + 反代到 frontend 容器里的 nginx
+# 规则改动后：docker compose -f docker-compose.prod.yml restart caddy
+#
+# 证书由 Caddy 自动申请（Let's Encrypt / ZeroSSL），续期也自动。
+# 前提：域名 A 记录已指向本机公网 IP，且 80/443 从公网可达（云控制台防火墙 + ufw 都要开）。
+{
+	email {$ACME_EMAIL}
+	# 关掉本地管理 API：127.0.0.1:2019 是个不需要认证的写配置入口，
+	# 云端没有任何理由留着它。代价是不能 caddy reload，改配置就 restart 容器。
+	admin off
+
+	# 不限制 protocols，保持默认的 h1/h2/h3：
+	# compose 里已把 443/udp 发布出来，h3 才能用；只想留 h2 的话
+	# 这里加 servers { protocols h1 h2 } 并把 443/udp 的端口映射删掉。
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# 上过一次 HTTPS 后浏览器一年内不再走明文（含子域名）
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+		-Server
+	}
+
+	reverse_proxy frontend:80
+
+	log {
+		output stdout
+		format json
+	}
+}

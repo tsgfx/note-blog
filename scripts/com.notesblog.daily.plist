@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.notesblog.daily</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>/Users/ruichao/workspace/note-blog/scripts/daily-maintenance.sh</string>
+    </array>
+
+    <!-- 每日 03:00：本地备份（+ 周日顺带拉异地副本，由脚本内部判断） -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- 睡觉时错过就等下次唤醒补跑 -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/ruichao/Library/Logs/notesblog-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/ruichao/Library/Logs/notesblog-backup.log</string>
+
+    <key>Nice</key>
+    <integer>10</integer>
+</dict>
+</plist>

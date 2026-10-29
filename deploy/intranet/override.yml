@@ -1,0 +1,18 @@
+# 内网部署覆盖层：跳过 Caddy，前端直接监听内网端口
+#
+#   docker compose -f docker-compose.prod.yml -f deploy/intranet/override.yml \
+#     up -d mysql ollama backend frontend
+#
+# 和公网版的区别只有一处：没有公网域名就签不出证书，Caddy 那一层整体不要了，
+# 前端 nginx 直接对外。**必须显式列服务名**——不列的话 caddy 也会被拉起来，
+# 它会去申请证书然后一直失败重试。
+#
+# ports 是合并语义，frontend 原本只 expose 80，这里再加上宿主机映射。
+# （原 /monitor Beszel 反代相关配置已随资源监控功能下线一并移除）
+services:
+  frontend:
+    ports:
+      # BIND_IP 很重要：Docker 发布的端口会绕过 ufw（走 DOCKER-USER 链，不经 INPUT），
+      # 所以「只在 ufw 里放行内网」是假的安全。机器如果同时有公网 IP，
+      # 必须把 BIND_IP 设成内网 IP，让监听只落在内网网卡上。
+      - "${BIND_IP:-0.0.0.0}:${APP_PORT:-80}:80"

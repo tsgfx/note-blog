@@ -1,0 +1,26 @@
+# fail2ban 规则（由 deploy/apply.sh 安装到 /etc/fail2ban/jail.d/note-blog.local）
+#
+# ufw 的 limit 只管「新建连接的速率」，管不住已经握手的连续密码尝试；
+# fail2ban 读 auth.log，同一 IP 短时间失败多次就直接封一段时间。
+#
+# 查状态：fail2ban-client status sshd
+# 手动解封：fail2ban-client set sshd unbanip 1.2.3.4
+
+[DEFAULT]
+# 封 1 小时，够让绝大多数脚本换目标
+bantime = 1h
+findtime = 10m
+maxretry = 5
+# 用 ufw 执行封禁，和 ufw status 里的规则可见，不用再装 iptables 规则
+banaction = ufw
+backend = systemd
+
+[sshd]
+enabled = true
+mode = aggressive
+# 已认证的会话不受影响（sshd 只在登录前失败时增加计数）
+port = ssh
+
+# 注意：nginx 跑在容器里，日志不在宿主机 /var/log/nginx，
+# 所以这里不启用 nginx-* 的 jail —— 半生效的规则比没有更危险。
+# 应用层的洪水攻击由 deploy/nginx/edge.conf 的 limit_req 拦。

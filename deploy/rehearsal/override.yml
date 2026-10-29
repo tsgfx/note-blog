@@ -1,0 +1,16 @@
+# 预演用的 compose 覆盖层：把前端直接发布到 8080，跳过 Caddy
+#
+#   docker compose -f docker-compose.prod.yml -f deploy/rehearsal/override.yml \
+#     up -d mysql ollama backend frontend
+#
+# 为什么跳过 Caddy：沙箱的公网地址是平台分配的子域（形如
+# https://<space-key>--<port>.<region>.sandbox.cloudstudio.club），
+# 域名不在你手上，ACME 签不出证书。所以预演只验证「应用链路」，
+# Caddyfile 单独用 caddy validate 校验语法。
+#
+# ports 是合并语义（不是替换），frontend 原来只 expose 80，这里再加上宿主机映射。
+services:
+  frontend:
+    ports:
+      # 8090 而不是 8080：本机开发用的 mvn spring-boot:run 常占着 8080
+      - "8090:80"
