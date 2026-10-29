@@ -19,9 +19,19 @@ public record NoteDetailDto(
         boolean hasUnpublishedEdits,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        List<String> tags) {
+        List<String> tags,
+        long viewCount,
+        AdjacentPost prev,
+        AdjacentPost next) {
+
+    /** 相邻文章（上一篇 / 下一篇）简要信息 */
+    public record AdjacentPost(String title, String slug) {}
 
     public static NoteDetailDto from(Note n) {
+        return from(n, null, null);
+    }
+
+    public static NoteDetailDto from(Note n, AdjacentPost prev, AdjacentPost next) {
         return new NoteDetailDto(
                 n.getId(),
                 n.getTitle(),
@@ -34,6 +44,9 @@ public record NoteDetailDto(
                 n.isHasUnpublishedEdits(),
                 n.getCreatedAt(),
                 n.getUpdatedAt(),
-                n.getTags().stream().map(Tag::getName).sorted().toList());
+                n.getTags().stream().map(Tag::getName).sorted().toList(),
+                n.getViewCount(),
+                prev,
+                next);
     }
 }

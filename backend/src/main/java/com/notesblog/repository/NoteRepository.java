@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,6 +20,39 @@ public interface NoteRepository extends JpaRepository<Note, Long>, JpaSpecificat
     Page<Note> findByStatus(NoteStatus status, Pageable pageable);
 
     boolean existsBySlug(String slug);
+
+    /** 单行原子递增阅读量，避免长锁或整行实体写覆盖 */
+    @Modifying
+    @Query("update Note n set n.viewCount = n.viewCount + 1 where n.id = :id")
+    void incrementViewCount(@Param("id") Long id);
+
+    /**
+     * 已发布文章中的「上一篇」（时间更新或 id 更大，按时间升序取第 1 个）。
+     */
+    @Query("""
+            select n.title, n.slug from Note n
+            where n.status = 'PUBLISHED'
+              and (n.publishedAt > :publishedAt or (n.publishedAt = :publishedAt and n.id > :id))
+            order by n.publishedAt asc, n.id asc
+            """)
+    List<Object[]> findPrevPublishedPost(
+            @Param("publishedAt") LocalDateTime publishedAt,
+            @Param("id") Long id,
+            Pageable pageable);
+
+    /**
+     * 已发布文章中的「下一篇」（时间更早或 id 更小，按时间降序取第 1 个）。
+     */
+    @Query("""
+            select n.title, n.slug from Note n
+            where n.status = 'PUBLISHED'
+              and (n.publishedAt < :publishedAt or (n.publishedAt = :publishedAt and n.id < :id))
+            order by n.publishedAt desc, n.id desc
+            """)
+    List<Object[]> findNextPublishedPost(
+            @Param("publishedAt") LocalDateTime publishedAt,
+            @Param("id") Long id,
+            Pageable pageable);
 
     /**
      * 按 sourcePath 分组计数，供前端左侧"库"导航用。

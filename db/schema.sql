@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS notes (
   published_at DATETIME     DEFAULT NULL,
   -- 已发布文章被改过、但还没重新发布：公开页仍是旧内容
   has_unpublished_edits BOOLEAN NOT NULL DEFAULT FALSE,
+  view_count   BIGINT       NOT NULL DEFAULT 0,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

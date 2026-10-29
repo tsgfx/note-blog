@@ -62,6 +62,9 @@ public class Note {
     @Column(name = "has_unpublished_edits", nullable = false)
     private boolean hasUnpublishedEdits;
 
+    @Column(name = "view_count", nullable = false)
+    private long viewCount = 0;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -50,6 +50,10 @@ class CorsConfigTest {
     @MockitoBean
     private NoteRepository noteRepository;
     @MockitoBean
+    private com.notesblog.service.NoteService noteService;
+    @MockitoBean
+    private com.notesblog.service.RelatedNoteService relatedNoteService;
+    @MockitoBean
     private TokenVersionService tokenVersionService;
     @MockitoBean
     private AuthService authService;

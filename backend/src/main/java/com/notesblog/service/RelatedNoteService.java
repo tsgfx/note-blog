@@ -2,6 +2,7 @@ package com.notesblog.service;
 
 import com.notesblog.common.NotFoundException;
 import com.notesblog.domain.Note;
+import com.notesblog.domain.NoteStatus;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
 import java.util.ArrayList;
@@ -38,6 +39,15 @@ public class RelatedNoteService {
     private final NoteRepository noteRepository;
 
     public List<RelatedNoteDto> related(long noteId, Integer limit) {
+        return related(noteId, limit, false);
+    }
+
+    /** 公开文章相关推荐：只返回状态为已发布的文章，防止泄露草稿标题与内容。 */
+    public List<RelatedNoteDto> relatedPublished(long noteId, Integer limit) {
+        return related(noteId, limit, true);
+    }
+
+    public List<RelatedNoteDto> related(long noteId, Integer limit, boolean onlyPublished) {
         int wanted = limit == null ? DEFAULT_LIMIT : Math.min(Math.max(limit, 1), MAX_LIMIT);
         List<VectorIndex.Chunk> chunks = index.chunks();
         float[] query = noteVector(chunks, noteId);
@@ -65,6 +75,9 @@ public class RelatedNoteService {
             Note note = noteRepository.findById(entry.getKey()).orElse(null);
             // 索引快照可能落后于删除：分片还在内存里、笔记已经没了，跳过即可
             if (note == null) {
+                continue;
+            }
+            if (onlyPublished && note.getStatus() != NoteStatus.PUBLISHED) {
                 continue;
             }
             result.add(new RelatedNoteDto(

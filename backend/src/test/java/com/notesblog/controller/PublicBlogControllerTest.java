@@ -6,13 +6,16 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
 import com.notesblog.repository.NoteRepository;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +44,10 @@ class PublicBlogControllerTest {
 
     @MockitoBean
     private NoteRepository noteRepository;
+    @MockitoBean
+    private com.notesblog.service.NoteService noteService;
+    @MockitoBean
+    private com.notesblog.service.RelatedNoteService relatedNoteService;
     // 切片会扫到 JwtAuthFilter 与主启动类的 seedAdmin
     @MockitoBean
     private com.notesblog.service.JwtService jwtService;
@@ -92,6 +99,21 @@ class PublicBlogControllerTest {
         verify(noteRepository).findByStatus(eq(NoteStatus.PUBLISHED), captor.capture());
         assertThat(captor.getValue().getPageNumber()).isEqualTo(2);
         assertThat(captor.getValue().getPageSize()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("按热门排序会优先按 viewCount 降序")
+    void sortByViewsAppliesViewCountOrdering() throws Exception {
+        when(noteRepository.findByStatus(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
+                .thenAnswer(invocation -> pageOf(List.of(), invocation.getArgument(1), 0));
+
+        mockMvc.perform(get("/api/blog/posts?sort=views"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(noteRepository).findByStatus(eq(NoteStatus.PUBLISHED), captor.capture());
+        assertThat(captor.getValue().getSort().getOrderFor("viewCount")).isNotNull();
+        assertThat(captor.getValue().getSort().getOrderFor("viewCount").isDescending()).isTrue();
     }
 
     @Test
@@ -176,5 +198,69 @@ class PublicBlogControllerTest {
         mockMvc.perform(get("/api/blog/stats"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.published").value(0));
+    }
+
+    @Test
+    @DisplayName("文章详情返回上一篇和下一篇相邻导航")
+    void detailCarriesAdjacentPosts() throws Exception {
+        Note n = note(10, "当前文章");
+        n.setPublishedAt(LocalDateTime.of(2026, 10, 15, 12, 0));
+        when(noteRepository.findBySlug("post-10")).thenReturn(Optional.of(n));
+
+        when(noteRepository.findPrevPublishedPost(eq(n.getPublishedAt()), eq(10L), any(Pageable.class)))
+                .thenReturn(List.<Object[]>of(new Object[] {"上一篇标题", "prev-slug"}));
+        when(noteRepository.findNextPublishedPost(eq(n.getPublishedAt()), eq(10L), any(Pageable.class)))
+                .thenReturn(List.<Object[]>of(new Object[] {"下一篇标题", "next-slug"}));
+
+        mockMvc.perform(get("/api/blog/posts/post-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("当前文章"))
+                .andExpect(jsonPath("$.data.prev.title").value("上一篇标题"))
+                .andExpect(jsonPath("$.data.prev.slug").value("prev-slug"))
+                .andExpect(jsonPath("$.data.next.title").value("下一篇标题"))
+                .andExpect(jsonPath("$.data.next.slug").value("next-slug"));
+    }
+
+    @Test
+    @DisplayName("记录文章阅读量 (PV) 成功自增并返回最新数值")
+    void recordViewIncrementsCount() throws Exception {
+        Note n = note(10, "文章");
+        n.setViewCount(41);
+        when(noteRepository.findBySlug("post-10")).thenReturn(Optional.of(n));
+
+        mockMvc.perform(post("/api/blog/posts/post-10/view"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewCount").value(42));
+
+        verify(noteRepository).incrementViewCount(10L);
+    }
+
+    @Test
+    @DisplayName("带标签筛选时委托给 NoteService 处理")
+    void postsWithTagDelegatesToService() throws Exception {
+        when(noteService.list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/blog/posts?tag=C语言"))
+                .andExpect(status().isOk());
+
+        verify(noteService).list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("公开文章相关推荐仅查询已发布笔记并返回")
+    void publicRelatedPostsReturnsOnlyPublished() throws Exception {
+        Note n = note(10, "主文章");
+        when(noteRepository.findBySlug("post-10")).thenReturn(Optional.of(n));
+        when(relatedNoteService.relatedPublished(eq(10L), eq(4)))
+                .thenReturn(List.of(new com.notesblog.dto.RelatedNoteDto(
+                        11L, "相关文章1", "post-11", "摘要1", "path/1", 0.88)));
+
+        mockMvc.perform(get("/api/blog/posts/post-10/related?limit=4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].title").value("相关文章1"))
+                .andExpect(jsonPath("$.data[0].slug").value("post-11"));
+
+        verify(relatedNoteService).relatedPublished(10L, 4);
     }
 }

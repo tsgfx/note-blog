@@ -7,17 +7,24 @@ import com.notesblog.domain.NoteStatus;
 import com.notesblog.dto.BlogStatsDto;
 import com.notesblog.dto.NoteDetailDto;
 import com.notesblog.dto.NoteSummaryDto;
+import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
+import com.notesblog.service.NoteService;
+import com.notesblog.service.RelatedNoteService;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/blog")
@@ -30,30 +37,92 @@ public class PublicBlogController {
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final NoteRepository noteRepository;
+    private final NoteService noteService;
+    private final RelatedNoteService relatedNoteService;
 
     /**
-     * 公开文章列表，分页返回。
-     *
-     * <p>以前这里写死 {@code PageRequest.of(0, 100)} 且不接收分页参数，
-     * 发布超过 100 篇之后第 101 篇起在博客里看不到，也没有任何提示。
+     * 公开文章列表，支持按标签或关键词即时过滤、最新/热门排序，分页返回。
      */
     @GetMapping("/posts")
     public ApiResponse<Page<NoteSummaryDto>> posts(
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "recent") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size) {
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
-        Page<Note> result = noteRepository.findByStatus(NoteStatus.PUBLISHED,
-                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "publishedAt")));
+
+        boolean sortByViews = "views".equalsIgnoreCase(sort);
+        Sort order = sortByViews
+                ? Sort.by(Sort.Order.desc("viewCount"), Sort.Order.desc("publishedAt"), Sort.Order.desc("id"))
+                : Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"));
+        Pageable pageable = PageRequest.of(safePage, safeSize, order);
+
+        List<String> tags = (tag != null && !tag.isBlank()) ? List.of(tag.trim()) : null;
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+
+        if (tags != null || kw != null) {
+            return ApiResponse.ok(noteService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable));
+        }
+        Page<Note> result = noteRepository.findByStatus(NoteStatus.PUBLISHED, pageable);
         return ApiResponse.ok(result.map(NoteSummaryDto::from));
     }
 
     @GetMapping("/posts/{slug}")
     public ApiResponse<NoteDetailDto> post(@PathVariable String slug) {
-        return ApiResponse.ok(noteRepository.findBySlug(slug)
-                .filter(note -> note.getStatus() == NoteStatus.PUBLISHED)
-                .map(NoteDetailDto::from)
-                .orElseThrow(() -> new NotFoundException("公开文章不存在：" + slug)));
+        Note note = noteRepository.findBySlug(slug)
+                .filter(n -> n.getStatus() == NoteStatus.PUBLISHED)
+                .orElseThrow(() -> new NotFoundException("公开文章不存在：" + slug));
+
+        NoteDetailDto.AdjacentPost prev = null;
+        NoteDetailDto.AdjacentPost next = null;
+        if (note.getPublishedAt() != null) {
+            prev = findAdjacent(noteRepository.findPrevPublishedPost(
+                    note.getPublishedAt(), note.getId(), PageRequest.of(0, 1)));
+            next = findAdjacent(noteRepository.findNextPublishedPost(
+                    note.getPublishedAt(), note.getId(), PageRequest.of(0, 1)));
+        }
+
+        return ApiResponse.ok(NoteDetailDto.from(note, prev, next));
+    }
+
+    /**
+     * 公开文章相关推荐：基于向量语义，仅返回已发布文章。
+     */
+    @GetMapping("/posts/{slug}/related")
+    public ApiResponse<List<RelatedNoteDto>> relatedPosts(
+            @PathVariable String slug,
+            @RequestParam(required = false) Integer limit) {
+        Note note = noteRepository.findBySlug(slug)
+                .filter(n -> n.getStatus() == NoteStatus.PUBLISHED)
+                .orElseThrow(() -> new NotFoundException("公开文章不存在：" + slug));
+        return ApiResponse.ok(relatedNoteService.relatedPublished(note.getId(), limit));
+    }
+
+    /**
+     * 记录公开文章阅读量（PV）。
+     *
+     * <p>独立 POST 端点而不是放在 GET /posts/{slug} 里面：
+     * 1. 避免爬虫或未执行 JS 的脚本污染阅读量；
+     * 2. 避免破坏 GET /posts/{slug} 的 ETag 协商缓存（否则每次自增都会使缓存失效，
+     *    详情页每次都要完整传输正文）；
+     * 3. 前端可在同会话（sessionStorage）内去重，避免读者 F5 刷新重复计次。
+     */
+    @PostMapping("/posts/{slug}/view")
+    @Transactional
+    public ApiResponse<Map<String, Long>> recordView(@PathVariable String slug) {
+        Note note = noteRepository.findBySlug(slug)
+                .filter(n -> n.getStatus() == NoteStatus.PUBLISHED)
+                .orElseThrow(() -> new NotFoundException("公开文章不存在：" + slug));
+        noteRepository.incrementViewCount(note.getId());
+        return ApiResponse.ok(Map.of("viewCount", note.getViewCount() + 1));
+    }
+
+    private NoteDetailDto.AdjacentPost findAdjacent(List<Object[]> rows) {
+        if (rows == null || rows.isEmpty()) return null;
+        Object[] row = rows.get(0);
+        return new NoteDetailDto.AdjacentPost((String) row[0], (String) row[1]);
     }
 
     /**

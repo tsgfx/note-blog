@@ -17,7 +17,8 @@ public record NoteSummaryDto(
         /** 已发布但改过还没重新发布：线上仍是旧内容 */
         boolean hasUnpublishedEdits,
         LocalDateTime updatedAt,
-        List<String> tags) {
+        List<String> tags,
+        long viewCount) {
 
     public static NoteSummaryDto from(Note n) {
         return new NoteSummaryDto(
@@ -30,6 +31,7 @@ public record NoteSummaryDto(
                 n.getPublishedAt(),
                 n.isHasUnpublishedEdits(),
                 n.getUpdatedAt(),
-                n.getTags().stream().map(Tag::getName).sorted().toList());
+                n.getTags().stream().map(Tag::getName).sorted().toList(),
+                n.getViewCount());
     }
 }

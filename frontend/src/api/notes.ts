@@ -20,12 +20,20 @@ export interface NoteSummary {
   hasUnpublishedEdits?: boolean
   updatedAt?: string
   tags: string[]
+  viewCount?: number
+}
+
+export interface AdjacentPost {
+  title: string
+  slug: string
 }
 
 export interface NoteDetail extends NoteSummary {
   contentMd: string
   sourcePath?: string
   createdAt?: string
+  prev?: AdjacentPost | null
+  next?: AdjacentPost | null
 }
 
 export interface SearchResult {
@@ -54,6 +62,11 @@ export interface RelatedNote {
 
 export function getRelatedNotes(id: number, limit = 5) {
   return get<RelatedNote[]>(`/notes/${id}/related`, { limit })
+}
+
+/** 公开文章的相关推荐（仅推荐已发布文章）。 */
+export function getPublishedRelatedNotes(slug: string, limit = 4) {
+  return get<RelatedNote[]>(`/blog/posts/${slug}/related`, { limit })
 }
 
 /** 发布前预检：BLOCK = 发不出去，WARN = 发得出去但有风险。 */
@@ -136,8 +149,21 @@ export function getPublishedNote(slug: string) {
   return get<NoteDetail>(`/blog/posts/${slug}`)
 }
 
-export function listPublishedNotes(page = 0, size = 20) {
-  return get<Page<NoteSummary>>('/blog/posts', { page, size })
+export function listPublishedNotes(
+  params:
+    | { page?: number; size?: number; tag?: string; keyword?: string; sort?: 'recent' | 'views' }
+    | number = 0,
+  size = 20,
+) {
+  if (typeof params === 'number') {
+    return get<Page<NoteSummary>>('/blog/posts', { page: params, size })
+  }
+  return get<Page<NoteSummary>>('/blog/posts', params)
+}
+
+/** 记录文章浏览量（PV），独立端点避免破坏 ETag 缓存 */
+export function recordPostView(slug: string) {
+  return post<{ viewCount: number }>(`/blog/posts/${slug}/view`)
 }
 
 /** 首页统计。后端只返回已发布相关的聚合数字（不含笔记总数，防止暴露草稿量）。 */

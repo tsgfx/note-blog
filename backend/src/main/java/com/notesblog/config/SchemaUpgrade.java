@@ -30,12 +30,16 @@ public class SchemaUpgrade implements ApplicationRunner {
     /** 已发布文章「有未发布修改」标记，见 db/migrations/003。 */
     private static final String NOTE_EDIT_COLUMN = "has_unpublished_edits";
 
+    /** 文章阅读量计数 */
+    private static final String VIEW_COUNT_COLUMN = "view_count";
+
     private final JdbcTemplate jdbc;
 
     @Override
     public void run(ApplicationArguments args) {
         upgradeTokenVersion();
         upgradeNoteEditFlag();
+        upgradeNoteViewCount();
         upgradeUsageTables();
         upgradeCommentsAndGuestQuota();
     }
@@ -120,6 +124,20 @@ public class SchemaUpgrade implements ApplicationRunner {
             throw new IllegalStateException(
                     "无法自动为 notes 表添加 " + NOTE_EDIT_COLUMN
                             + " 列，请手工执行 db/migrations/003_add_note_edit_flag.sql", e);
+        }
+    }
+
+    private void upgradeNoteViewCount() {
+        if (columnExists("notes", VIEW_COUNT_COLUMN)) {
+            return;
+        }
+        try {
+            jdbc.execute("ALTER TABLE notes ADD COLUMN " + VIEW_COUNT_COLUMN
+                    + " BIGINT NOT NULL DEFAULT 0 AFTER " + NOTE_EDIT_COLUMN);
+            log.info("schema_upgraded notes.{}", VIEW_COUNT_COLUMN);
+        } catch (DataAccessException e) {
+            throw new IllegalStateException(
+                    "无法自动为 notes 表添加 " + VIEW_COUNT_COLUMN + " 列", e);
         }
     }
 
