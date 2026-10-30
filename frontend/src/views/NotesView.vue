@@ -19,6 +19,7 @@ import {
 } from '../api/notes'
 import { confirmAction, notify } from '../lib/feedback'
 import { openDrawer } from '../lib/askState'
+import { openQuickCapture } from '../lib/quickCaptureState'
 import { collapseAll, revealFolder } from '../lib/folderTree'
 import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
@@ -610,10 +611,18 @@ onMounted(() => {
   loadFolders()
   loadTags()
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('notes-reload', onNotesReload)
 })
+
+function onNotesReload() {
+  load(0)
+  loadFolders()
+  loadTags()
+}
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('notes-reload', onNotesReload)
   window.removeEventListener('pointermove', onSidebarMove)
   window.removeEventListener('pointerup', onSidebarUp)
 })
@@ -640,6 +649,9 @@ onBeforeUnmount(() => {
           @click="openDrawer(query || undefined)"
         >
           <span class="sparkle" aria-hidden="true">✦</span> 问答助手
+        </button>
+        <button class="btn btn-ghost" type="button" title="记闪念 / 快捷收集 (Cmd+Shift+K)" @click="openQuickCapture()">
+          <span class="lightning-icon" aria-hidden="true">⚡</span> 记闪念
         </button>
         <RouterLink class="btn btn-primary" to="/editor/new">写一篇</RouterLink>
       </div>
@@ -1669,6 +1681,12 @@ onBeforeUnmount(() => {
 .sparkle {
   color: var(--pen);
   font-size: 13px;
+  margin-right: 4px;
+}
+
+.lightning-icon {
+  font-size: 13px;
+  color: #eab308;
   margin-right: 4px;
 }
 

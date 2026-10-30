@@ -360,12 +360,14 @@ async function submit() {
       <p v-else-if="integrityLoading" class="muted">正在检查资产完整性与死链…</p>
       <template v-else-if="integrity">
         <p class="backup-line">
-          知识库概况：共 <strong>{{ integrity.totalNotes }}</strong> 篇（公开 <strong>{{ integrity.publishedNotes }}</strong> 篇 · 草稿 {{ integrity.draftNotes }} 篇）
+          知识库概况：共 <strong>{{ integrity.totalNotes }}</strong> 篇（公开
+          <strong>{{ integrity.publishedNotes }}</strong> 篇 · 草稿 {{ integrity.draftNotes }} 篇）
         </p>
 
         <div v-if="integrity.brokenAssets.length > 0" class="notice notice-error integrity-box">
           <p class="integrity-alert-title">
-            发现 <strong>{{ integrity.brokenAssets.length }}</strong> 处本地图片死链（已发布文章中引用的图片文件已丢失）：
+            发现
+            <strong>{{ integrity.brokenAssets.length }}</strong> 处本地图片死链（已发布文章中引用的图片文件已丢失）：
           </p>
           <ul class="integrity-list">
             <li v-for="item in integrity.brokenAssets" :key="item.noteId + item.assetPath" class="integrity-item">
@@ -378,7 +380,9 @@ async function submit() {
         </div>
 
         <p v-if="integrity.missingChunksNotes > 0" class="notice notice-warn">
-          有 <strong>{{ integrity.missingChunksNotes }}</strong> 篇笔记缺失向量分片（语义问答与关联推荐无法索引）。可在下方维护区一键补建。
+          有
+          <strong>{{ integrity.missingChunksNotes }}</strong>
+          篇笔记缺失向量分片（语义问答与关联推荐无法索引）。可在下方维护区一键补建。
         </p>
 
         <p v-if="integrity.emptyNotes > 0" class="notice notice-warn">

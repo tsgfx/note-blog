@@ -5,7 +5,9 @@ import { isLoggedIn, logout } from './api/auth'
 import Toaster from './components/Toaster.vue'
 import ConfirmHost from './components/ConfirmHost.vue'
 import AskDrawer from './components/AskDrawer.vue'
+import QuickCaptureModal from './components/QuickCaptureModal.vue'
 import { isOpen, toggleDrawer } from './lib/askState'
+import { openQuickCapture } from './lib/quickCaptureState'
 import { theme, toggleTheme } from './lib/theme'
 
 const route = useRoute()
@@ -29,6 +31,15 @@ function onGlobalKeydown(event: KeyboardEvent) {
     if (signedIn.value) {
       event.preventDefault()
       toggleDrawer()
+    }
+  } else if (
+    (event.metaKey || event.ctrlKey) &&
+    event.shiftKey &&
+    (event.key === 'k' || event.key === 'K' || event.key === 'i' || event.key === 'I')
+  ) {
+    if (signedIn.value) {
+      event.preventDefault()
+      openQuickCapture()
     }
   }
 }
@@ -84,6 +95,14 @@ function signOut() {
             @click="toggleDrawer"
           >
             <span class="sparkle" aria-hidden="true">✦</span> 问答
+          </button>
+          <button
+            class="btn btn-ghost btn-sm btn-quick-capture"
+            type="button"
+            title="记闪念 / 快捷收集 (Cmd+Shift+K)"
+            @click="openQuickCapture()"
+          >
+            <span class="lightning-icon" aria-hidden="true">⚡</span> 闪念
           </button>
           <RouterLink class="btn btn-ghost btn-sm" to="/editor/new">写笔记</RouterLink>
           <RouterLink class="btn-text-link" to="/admin/comments">评论</RouterLink>
@@ -153,6 +172,20 @@ function signOut() {
     <Toaster />
     <ConfirmHost />
     <AskDrawer />
+    <QuickCaptureModal />
+
+    <!-- 移动端轻量悬浮快速记闪念按钮（只在登录态显示） -->
+    <button
+      v-if="signedIn"
+      class="mobile-capture-fab"
+      type="button"
+      aria-label="快速记录闪念"
+      title="记闪念 (随时收集灵感)"
+      @click="openQuickCapture()"
+    >
+      <span class="fab-lightning" aria-hidden="true">⚡</span>
+      <span class="fab-text">闪念</span>
+    </button>
   </div>
 </template>
 
@@ -217,5 +250,57 @@ function signOut() {
 
 .topbar-actions {
   gap: var(--space-5);
+}
+
+.btn-quick-capture {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+  font-weight: 500;
+  transition: all var(--dur-1) var(--ease-soft);
+}
+
+.lightning-icon {
+  font-size: 13px;
+  color: #eab308;
+}
+
+/* ───────── 移动端轻量悬浮快速记闪念按钮 ───────── */
+.mobile-capture-fab {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .mobile-capture-fab {
+    position: fixed;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: 1px solid var(--pen);
+    border-radius: 24px;
+    background: var(--pen);
+    color: var(--paper);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+    cursor: pointer;
+    transition:
+      transform var(--dur-1) var(--ease-out),
+      box-shadow var(--dur-1) var(--ease-out);
+  }
+
+  .mobile-capture-fab:active {
+    transform: scale(0.96);
+  }
+
+  .fab-lightning {
+    font-size: 15px;
+    color: #fef08a;
+  }
 }
 </style>

@@ -51,4 +51,3 @@ export interface IntegrityReport {
 export function getIntegrityReport() {
   return get<IntegrityReport>('/system/integrity')
 }
-
