@@ -42,6 +42,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final NoteRepository noteRepository;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     /** 公开列表：只返回 VISIBLE，按时间正序。 */
     @Transactional(readOnly = true)
@@ -75,6 +76,7 @@ public class CommentService {
         comment.setClientIp(clientIp);
         commentRepository.save(comment);
         log.info("comment_created id={} note={} ip={}", comment.getId(), note.getId(), clientIp);
+        notificationService.notifyNewComment(note.getTitle(), note.getSlug(), comment.getContent(), clientIp);
         return CommentDto.from(comment);
     }
 

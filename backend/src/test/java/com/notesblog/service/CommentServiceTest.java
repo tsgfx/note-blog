@@ -3,6 +3,7 @@ package com.notesblog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,7 @@ class CommentServiceTest {
     private CommentRepository commentRepository;
     private NoteRepository noteRepository;
     private AuditService auditService;
+    private NotificationService notificationService;
     private CommentService service;
 
     @BeforeEach
@@ -45,7 +47,8 @@ class CommentServiceTest {
         commentRepository = mock(CommentRepository.class);
         noteRepository = mock(NoteRepository.class);
         auditService = mock(AuditService.class);
-        service = new CommentService(commentRepository, noteRepository, auditService);
+        notificationService = mock(NotificationService.class);
+        service = new CommentService(commentRepository, noteRepository, auditService, notificationService);
     }
 
     private void aNote(String slug, NoteStatus status) {
@@ -74,6 +77,7 @@ class CommentServiceTest {
         assertThat(saved.getStatus()).isEqualTo(CommentStatus.VISIBLE);
         assertThat(dto.author()).isEqualTo(CommentDto.GUEST_AUTHOR);
         assertThat(dto.content()).isEqualTo("写得很好");
+        verify(notificationService).notifyNewComment(any(), eq("hello"), eq("写得很好"), eq("1.2.3.4"));
     }
 
     @Test
@@ -114,6 +118,7 @@ class CommentServiceTest {
 
         assertThat(dto).isNull();
         verify(commentRepository, never()).save(any());
+        verify(notificationService, never()).notifyNewComment(any(), any(), any(), any());
     }
 
     @Test

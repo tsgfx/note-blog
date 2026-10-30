@@ -93,6 +93,11 @@ app:
     # 后端只读文件时间与大小来判断「多久没备份成功」，不写这个目录。
     dir: ${BACKUP_DIR:/data/backups}
 
+  notification:
+    # 评论即时提醒 Webhook（可选）：支持飞书、钉钉、企业微信机器人、Bark 或通用 Webhook
+    # 留空不发送；异步非阻塞，异常绝不影响业务
+    webhook-url: ${NOTIFICATION_WEBHOOK_URL:}
+
   rate-limit:
     # 这两个接口是"贵"的：问答花 LLM token，搜索做向量检索。
     # 按客户端 IP 每分钟计数，超了返回 429 + Retry-After。

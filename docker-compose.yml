@@ -99,6 +99,8 @@ services:
       # 注意 IP 不要用通配 —— Spring 会展开成正则，把形似的域名也放进来。
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:[*],http://127.0.0.1:[*]}
       ASSETS_ROOT: /data/assets
+      # 评论即时提醒 Webhook（可选）：支持飞书、钉钉、企业微信机器人、Bark 或通用 Webhook
+      NOTIFICATION_WEBHOOK_URL: ${NOTIFICATION_WEBHOOK_URL:-}
     volumes:
       # 图片目录，宿主机原有 2236 张图直接复用
       - ./storage/assets:/data/assets
