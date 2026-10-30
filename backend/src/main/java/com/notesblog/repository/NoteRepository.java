@@ -86,6 +86,21 @@ public interface NoteRepository extends JpaRepository<Note, Long>, JpaSpecificat
     @Query("select count(distinct t.id) from Note n join n.tags t where n.status = :status")
     long countDistinctTagsByStatus(@Param("status") NoteStatus status);
 
+    /**
+     * 某个状态下的标签及篇数，按篇数降序。
+     *
+     * <p>公开博客要展示「热门标签」让读者有入口可点：只给标签筛选却没有标签清单，
+     * 读者得先猜有哪些标签。用 join + group by 聚合，不把整批笔记拉进内存。
+     */
+    @Query("""
+            select t.name, count(distinct n)
+            from Note n join n.tags t
+            where n.status = :status and t.name is not null and t.name <> ''
+            group by t.name
+            order by count(distinct n) desc, t.name asc
+            """)
+    List<Object[]> countTagsByStatus(@Param("status") NoteStatus status);
+
     @Query("select max(n.publishedAt) from Note n where n.status = :status")
     LocalDateTime findLatestPublishedAt(@Param("status") NoteStatus status);
 

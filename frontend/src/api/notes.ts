@@ -69,6 +69,11 @@ export function getPublishedRelatedNotes(slug: string, limit = 4) {
   return get<RelatedNote[]>(`/blog/posts/${slug}/related`, { limit })
 }
 
+/** 公开博客的热门标签（只统计已发布文章，按篇数降序）。 */
+export function listPublishedTags(limit = 12) {
+  return get<TagCount[]>('/blog/tags', { limit })
+}
+
 /** 发布前预检：BLOCK = 发不出去，WARN = 发得出去但有风险。 */
 export interface PreflightFinding {
   level: 'BLOCK' | 'WARN'

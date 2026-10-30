@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { listPublishedNotes, type NoteSummary } from '../api/notes'
+import { listPublishedNotes, listPublishedTags, type NoteSummary, type TagCount } from '../api/notes'
 import { isLoggedIn } from '../api/auth'
 import LoadingRows from '../components/LoadingRows.vue'
 
@@ -11,6 +11,7 @@ const router = useRouter()
 const PAGE_SIZE = 20
 
 const posts = ref<NoteSummary[]>([])
+const hotTags = ref<TagCount[]>([])
 const loading = ref(true)
 const error = ref('')
 const page = ref(0)
@@ -147,6 +148,10 @@ watch(
 onMounted(() => {
   const p = parseInt(route.query.page as string, 10) || 0
   load(p)
+  // 标签云只是入口提示，失败不打扰读者——列表本身照常可用
+  listPublishedTags(12)
+    .then((tags) => (hotTags.value = tags))
+    .catch(() => (hotTags.value = []))
 })
 </script>
 
@@ -208,6 +213,21 @@ onMounted(() => {
         </a>
       </div>
     </header>
+
+    <div v-if="hotTags.length" class="tag-cloud" aria-label="热门标签">
+      <span class="tag-cloud-label">标签</span>
+      <button
+        v-for="item in hotTags"
+        :key="item.name"
+        type="button"
+        class="cloud-tag"
+        :class="{ 'is-active': currentTag === item.name }"
+        :aria-pressed="currentTag === item.name"
+        @click="filterTag(item.name)"
+      >
+        {{ item.name }}<span class="cloud-count">{{ item.count }}</span>
+      </button>
+    </div>
 
     <div v-if="hasFilter" class="active-filter-bar rise">
       <span class="filter-desc">
@@ -374,6 +394,57 @@ onMounted(() => {
 
 .search-input::placeholder {
   color: var(--ink-3);
+}
+
+.tag-cloud {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-5);
+}
+
+.tag-cloud-label {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+}
+
+.cloud-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-soft),
+    border-color var(--dur-1) var(--ease-soft),
+    background-color var(--dur-1) var(--ease-soft);
+}
+
+.cloud-tag:hover,
+.cloud-tag.is-active {
+  color: var(--pen);
+  border-color: var(--pen);
+  background: var(--pen-soft);
+}
+
+.cloud-count {
+  font-size: 10px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cloud-tag.is-active .cloud-count,
+.cloud-tag:hover .cloud-count {
+  color: var(--pen);
 }
 
 .active-filter-bar {

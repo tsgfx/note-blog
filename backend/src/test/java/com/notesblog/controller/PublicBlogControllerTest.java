@@ -248,6 +248,22 @@ class PublicBlogControllerTest {
     }
 
     @Test
+    @DisplayName("热门标签只统计已发布文章，按篇数降序并截到 limit")
+    void publicTagsReturnsPublishedCounts() throws Exception {
+        when(noteRepository.countTagsByStatus(NoteStatus.PUBLISHED)).thenReturn(List.of(
+                new Object[] {"C语言", 9L},
+                new Object[] {"算法", 4L},
+                new Object[] {"随手记", 1L}));
+
+        mockMvc.perform(get("/api/blog/tags?limit=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].name").value("C语言"))
+                .andExpect(jsonPath("$.data[0].count").value(9))
+                .andExpect(jsonPath("$.data[1].name").value("算法"));
+    }
+
+    @Test
     @DisplayName("公开文章相关推荐仅查询已发布笔记并返回")
     void publicRelatedPostsReturnsOnlyPublished() throws Exception {
         Note n = note(10, "主文章");

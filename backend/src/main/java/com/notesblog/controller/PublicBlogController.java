@@ -7,6 +7,7 @@ import com.notesblog.domain.NoteStatus;
 import com.notesblog.dto.BlogStatsDto;
 import com.notesblog.dto.NoteDetailDto;
 import com.notesblog.dto.NoteSummaryDto;
+import com.notesblog.dto.NoteTagCountDto;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
 import com.notesblog.service.NoteService;
@@ -85,6 +86,21 @@ public class PublicBlogController {
         }
 
         return ApiResponse.ok(NoteDetailDto.from(note, prev, next));
+    }
+
+    /**
+     * 公开博客的热门标签，按篇数降序。
+     *
+     * <p>列表页支持 {@code ?tag=} 筛选却没有标签清单，读者只能靠猜。
+     * 这里只统计已发布文章，草稿里独有的标签不会出现在公开页上。
+     */
+    @GetMapping("/tags")
+    public ApiResponse<List<NoteTagCountDto>> tags(@RequestParam(defaultValue = "12") int limit) {
+        int wanted = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+        List<NoteTagCountDto> all = noteRepository.countTagsByStatus(NoteStatus.PUBLISHED).stream()
+                .map(row -> new NoteTagCountDto((String) row[0], ((Number) row[1]).longValue()))
+                .toList();
+        return ApiResponse.ok(all.size() > wanted ? all.subList(0, wanted) : all);
     }
 
     /**
