@@ -18,9 +18,23 @@ public record NoteSummaryDto(
         boolean hasUnpublishedEdits,
         LocalDateTime updatedAt,
         List<String> tags,
-        long viewCount) {
+        long viewCount,
+        /**
+         * 关键词命中正文时的一小段上下文，其余情况为 null。
+         *
+         * <p>搜索会同时匹配标题、正文和标签，但列表只显示摘要——命中正文时
+         * 摘要把关键词藏起来了，读者看到一条对不上的结果。把命中的那一句带出来，
+         * 「为什么它在结果里」就不用再点进去找。
+         */
+        String matchSnippet) {
 
     public static NoteSummaryDto from(Note n) {
+        return from(n, null);
+    }
+
+    /** @param keyword 已 trim 的关键词；为 null 表示不做命中片段 */
+    public static NoteSummaryDto from(Note n, String keyword) {
+        List<String> tags = n.getTags().stream().map(Tag::getName).sorted().toList();
         return new NoteSummaryDto(
                 n.getId(),
                 n.getTitle(),
@@ -31,7 +45,40 @@ public record NoteSummaryDto(
                 n.getPublishedAt(),
                 n.isHasUnpublishedEdits(),
                 n.getUpdatedAt(),
-                n.getTags().stream().map(Tag::getName).sorted().toList(),
-                n.getViewCount());
+                tags,
+                n.getViewCount(),
+                snippet(n, keyword, tags));
+    }
+
+    /**
+     * 只在「关键词不出现在标题/摘要/标签里」时才生成片段。
+     *
+     * <p>标题或摘要已经显示命中位置时再加一段正文，只是同一句话多说一遍。
+     */
+    static String snippet(Note n, String keyword, List<String> tags) {
+        if (keyword == null || keyword.isBlank()) return null;
+        String kw = keyword.trim().toLowerCase();
+        if (contains(n.getTitle(), kw) || contains(n.getSummary(), kw)) return null;
+        for (String tag : tags) {
+            if (contains(tag, kw)) return null;
+        }
+        String content = n.getContentMd();
+        if (content == null || content.isEmpty()) return null;
+        int hit = content.toLowerCase().indexOf(kw);
+        if (hit < 0) return null;
+
+        int from = Math.max(0, hit - 40);
+        int to = Math.min(content.length(), hit + kw.length() + 60);
+        String raw = content.substring(from, to)
+                .replaceAll("```[\\s\\S]*", " ")
+                .replaceAll("[#>*_`~|]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (raw.isEmpty()) return null;
+        return (from > 0 ? "…" : "") + raw + (to < content.length() ? "…" : "");
+    }
+
+    private static boolean contains(String text, String lowerKeyword) {
+        return text != null && text.toLowerCase().contains(lowerKeyword);
     }
 }

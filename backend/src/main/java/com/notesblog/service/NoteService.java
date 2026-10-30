@@ -96,7 +96,10 @@ public class NoteService {
             }
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
         };
-        return noteRepository.findAll(spec, pageable).map(NoteSummaryDto::from);
+        // 实体已经整行取出（含正文），命中片段就在内存里算，不用再查一次库
+        String snippetKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        return noteRepository.findAll(spec, pageable)
+                .map(note -> NoteSummaryDto.from(note, snippetKeyword));
     }
 
     /**

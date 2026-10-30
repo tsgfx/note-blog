@@ -21,6 +21,8 @@ export interface NoteSummary {
   updatedAt?: string
   tags: string[]
   viewCount?: number
+  /** 关键词命中正文时的上下文片段（标题/摘要/标签已命中时为空） */
+  matchSnippet?: string | null
 }
 
 export interface AdjacentPost {

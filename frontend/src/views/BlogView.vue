@@ -59,6 +59,32 @@ function monthDay(value?: string): string {
   return `${value.slice(5, 7)}-${value.slice(8, 10)}`
 }
 
+const HTML_ESCAPE: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => HTML_ESCAPE[c] ?? c)
+}
+
+/**
+ * 把正文片段里的关键词包成 <mark>。
+ *
+ * <p>先转义再拼标签：片段来自笔记正文，虽然作者是自己人，但 v-html 一旦漏了转义，
+ * 一篇写了 `<script>` 的笔记就能在博客页执行。关键词同样要转义，否则含 `<` 的词会破坏标记。
+ */
+function highlight(text: string): string {
+  const safe = escapeHtml(text)
+  const kw = escapeHtml(currentKeyword.value).trim()
+  if (!kw) return safe
+  const pattern = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return safe.replace(new RegExp(pattern, 'gi'), (hit) => `<mark>${hit}</mark>`)
+}
+
 function applySearch() {
   const kw = searchInput.value.trim()
   router.push({
@@ -268,6 +294,12 @@ onMounted(() => {
                 <span class="post-title-text">{{ post.title }}</span>
               </RouterLink>
               <p v-if="post.summary" class="post-summary">{{ post.summary }}</p>
+              <!-- 关键词命中的是正文而不是摘要时，把那一句带出来，
+                   否则读者看到一条"摘要里没有关键词"的结果，会以为搜索不准 -->
+              <p v-else-if="post.matchSnippet" class="post-snippet">
+                <span class="snippet-label">正文命中</span>
+                <span v-html="highlight(post.matchSnippet)" />
+              </p>
               <div v-if="post.tags.length" class="post-tags">
                 <button
                   v-for="tag in post.tags.slice(0, 4)"
@@ -629,6 +661,37 @@ onMounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 正文命中片段：和摘要同样两行，但带一个来源标记，读者知道这是搜索上下文 */
+.post-snippet {
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  max-width: 38rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.snippet-label {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--paper-deep);
+  color: var(--ink-3);
+  font-size: 11px;
+  vertical-align: 1px;
+}
+
+.post-snippet :deep(mark) {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--pen-soft);
+  color: var(--pen);
 }
 
 .post-tags {
