@@ -4,15 +4,19 @@ import com.notesblog.common.ApiResponse;
 import com.notesblog.common.NotFoundException;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
+import com.notesblog.dto.BacklinkDto;
 import com.notesblog.dto.BlogStatsDto;
 import com.notesblog.dto.NoteDetailDto;
 import com.notesblog.dto.NoteSummaryDto;
 import com.notesblog.dto.NoteTagCountDto;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
+import com.notesblog.service.BacklinkService;
 import com.notesblog.service.NoteService;
 import com.notesblog.service.RecommendationService;
 import com.notesblog.service.RelatedNoteService;
+import com.notesblog.service.SearchAnalyticsService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,8 @@ public class PublicBlogController {
     private final NoteService noteService;
     private final RelatedNoteService relatedNoteService;
     private final RecommendationService recommendationService;
+    private final BacklinkService backlinkService;
+    private final SearchAnalyticsService searchAnalyticsService;
 
     /**
      * 博客推荐流：支持冷启动精选与基于读者足迹的个性化兴趣推荐。
@@ -65,7 +71,8 @@ public class PublicBlogController {
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "recent") String sort,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size) {
+            @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size,
+            HttpServletRequest servletRequest) {
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
 
@@ -79,10 +86,22 @@ public class PublicBlogController {
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
 
         if (tags != null || kw != null) {
-            return ApiResponse.ok(noteService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable));
+            Page<NoteSummaryDto> pageResult = noteService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable);
+            if (kw != null) {
+                searchAnalyticsService.recordSearchAsync(kw, (int) pageResult.getTotalElements(), resolveClientIp(servletRequest));
+            }
+            return ApiResponse.ok(pageResult);
         }
         Page<Note> result = noteRepository.findByStatus(NoteStatus.PUBLISHED, pageable);
         return ApiResponse.ok(result.map(NoteSummaryDto::from));
+    }
+
+    /**
+     * 公开文章的反向链接（提及本文的笔记）。
+     */
+    @GetMapping("/posts/{slug}/backlinks")
+    public ApiResponse<List<BacklinkDto>> backlinks(@PathVariable String slug) {
+        return ApiResponse.ok(backlinkService.findBacklinksForPublic(slug));
     }
 
     @GetMapping("/posts/{slug}")
@@ -169,5 +188,20 @@ public class PublicBlogController {
                 noteRepository.countByStatus(NoteStatus.PUBLISHED),
                 noteRepository.countDistinctTagsByStatus(NoteStatus.PUBLISHED),
                 noteRepository.findLatestPublishedAt(NoteStatus.PUBLISHED)));
+    }
+
+    private static String resolveClientIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip == null ? "unknown" : ip;
     }
 }

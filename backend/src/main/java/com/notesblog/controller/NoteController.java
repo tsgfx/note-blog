@@ -2,6 +2,7 @@ package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
 import com.notesblog.domain.NoteStatus;
+import com.notesblog.dto.BacklinkDto;
 import com.notesblog.dto.BatchIdsRequest;
 import com.notesblog.dto.BatchResultDto;
 import com.notesblog.dto.FolderNodeDto;
@@ -17,6 +18,7 @@ import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.dto.ReindexReportDto;
 import com.notesblog.dto.UpdateNoteRequest;
 import jakarta.validation.Valid;
+import com.notesblog.service.BacklinkService;
 import com.notesblog.service.NoteMetaBatchService;
 import com.notesblog.service.NoteMetaService;
 import com.notesblog.service.NoteService;
@@ -48,6 +50,7 @@ public class NoteController {
     private final NoteMetaBatchService noteMetaBatchService;
     private final RelatedNoteService relatedNoteService;
     private final PublishPreflightService publishPreflightService;
+    private final BacklinkService backlinkService;
 
     /** 单页上限，与前端列表页的每页条数解耦，防止一次拉走整库。 */
     private static final int MAX_PAGE_SIZE = 100;
@@ -133,6 +136,14 @@ public class NoteController {
             @PathVariable Long id, @RequestParam(required = false) Integer limit) {
         relatedNoteService.requireExists(id);
         return ApiResponse.ok(relatedNoteService.related(id, limit));
+    }
+
+    /**
+     * 反向链接（提及本文的笔记）：包含草稿与已发布笔记。
+     */
+    @GetMapping("/{id}/backlinks")
+    public ApiResponse<List<BacklinkDto>> backlinks(@PathVariable Long id) {
+        return ApiResponse.ok(backlinkService.findBacklinksForAdmin(id));
     }
 
     @PostMapping

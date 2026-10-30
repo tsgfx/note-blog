@@ -76,8 +76,22 @@ md.renderer.rules.fence = (tokens, index) => {
   ].join('\n')
 }
 
+/**
+ * 解析 Wiki-link 双向链接语法：[[笔记标题]] 或 [[笔记标题|自定义显示文字]]，转为内部超链接。
+ */
+export function replaceWikiLinks(source: string): string {
+  if (!source) return ''
+  return source.replace(/\[\[([^\]|\r\n]+)(?:\|([^\]\r\n]+))?\]\]/g, (_, target, alias) => {
+    const rawTarget = target.trim()
+    const label = alias ? alias.trim() : rawTarget
+    const encoded = encodeURIComponent(rawTarget)
+    return `[${label}](/blog?keyword=${encoded})`
+  })
+}
+
 export function renderMarkdown(source: string): string {
-  return md.render(source)
+  const transformed = replaceWikiLinks(source)
+  return md.render(transformed)
 }
 
 export interface OutlineItem {

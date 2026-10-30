@@ -42,6 +42,31 @@ public class SchemaUpgrade implements ApplicationRunner {
         upgradeNoteViewCount();
         upgradeUsageTables();
         upgradeCommentsAndGuestQuota();
+        upgradeSearchLogs();
+    }
+
+    private void upgradeSearchLogs() {
+        if (tableExists("search_logs")) {
+            return;
+        }
+        try {
+            jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS search_logs (
+                  id          BIGINT       NOT NULL AUTO_INCREMENT,
+                  query       VARCHAR(128) NOT NULL,
+                  hit_count   INT          NOT NULL DEFAULT 0,
+                  client_ip   VARCHAR(64)  DEFAULT NULL,
+                  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (id),
+                  KEY idx_search_query (query),
+                  KEY idx_search_hit (hit_count),
+                  KEY idx_search_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+            log.info("schema_upgrade: search_logs table created");
+        } catch (DataAccessException e) {
+            log.warn("schema_upgrade: search_logs table check failed, will rely on schema.sql: {}", e.getMessage());
+        }
     }
 
     /**

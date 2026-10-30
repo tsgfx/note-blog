@@ -40,7 +40,7 @@ public class RssController {
     @Value("${app.rss.max-items:50}")
     private int maxItems;
 
-    @GetMapping(value = "/rss.xml", produces = "application/rss+xml;charset=UTF-8")
+    @GetMapping(value = {"/rss.xml", "/feed.xml", "/atom.xml"}, produces = "application/rss+xml;charset=UTF-8")
     @Transactional(readOnly = true)
     public String feed() {
         String base = siteUrl();

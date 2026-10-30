@@ -21,6 +21,23 @@ public interface NoteRepository extends JpaRepository<Note, Long>, JpaSpecificat
 
     boolean existsBySlug(String slug);
 
+    /**
+     * 反向链接候选查找：查找正文包含指定关键词（如 slug、标题或 wiki-link）的笔记。
+     */
+    @Query("""
+            select n from Note n
+            where n.id <> :excludeId
+              and (:status is null or n.status = :status)
+              and (n.contentMd like concat('%', :term1, '%') or (:term2 is not null and n.contentMd like concat('%', :term2, '%')))
+            order by n.updatedAt desc
+            """)
+    List<Note> findBacklinksCandidates(
+            @Param("excludeId") Long excludeId,
+            @Param("status") NoteStatus status,
+            @Param("term1") String term1,
+            @Param("term2") String term2,
+            Pageable pageable);
+
     /** 单行原子递增阅读量，避免长锁或整行实体写覆盖 */
     @Modifying
     @Query("update Note n set n.viewCount = n.viewCount + 1 where n.id = :id")

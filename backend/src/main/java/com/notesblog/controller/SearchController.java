@@ -1,16 +1,20 @@
 package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
+import com.notesblog.dto.SearchInsightsDto;
 import com.notesblog.dto.SearchRequest;
 import com.notesblog.dto.SearchResultDto;
+import com.notesblog.service.SearchAnalyticsService;
 import com.notesblog.service.SemanticSearchService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -29,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SearchController {
 
     private final SemanticSearchService searchService;
+    private final SearchAnalyticsService searchAnalyticsService;
 
     @PostMapping
     public ApiResponse<List<SearchResultDto>> search(@Valid @RequestBody SearchRequest request,
@@ -36,7 +41,18 @@ public class SearchController {
         List<SearchResultDto> results = isAdmin(authentication)
                 ? searchService.search(request.question(), request.safeLimit())
                 : searchService.searchPublished(request.question(), request.safeLimit());
+        searchAnalyticsService.recordSearchAsync(request.question(), results.size(), "admin");
         return ApiResponse.ok(results);
+    }
+
+    /**
+     * 搜索洞察与未命中词统计分析（选题雷达）。
+     */
+    @GetMapping("/insights")
+    public ApiResponse<SearchInsightsDto> insights(
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(searchAnalyticsService.getInsights(days, limit));
     }
 
     private static boolean isAdmin(Authentication authentication) {

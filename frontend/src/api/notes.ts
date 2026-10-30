@@ -304,3 +304,48 @@ export function generateMetaBatch(payload: GenerateMetaBatchPayload = {}) {
 export function reindexMissingNotes() {
   return post<{ queued: number; remaining: number }>('/notes/reindex')
 }
+
+/** 双向链接（反向引用）数据 */
+export interface Backlink {
+  id: number
+  title: string
+  slug: string
+  series?: string | null
+  snippet: string
+  updatedAt?: string
+  isPublished: boolean
+}
+
+/** 搜索洞察与选题雷达数据 */
+export interface SearchInsights {
+  days: number
+  totalSearches: number
+  zeroHitSearches: number
+  zeroHitRate: number
+  topZeroHits: { query: string; count: number; lastSearchedAt: string }[]
+  topQueries: { query: string; count: number; avgHits: number }[]
+}
+
+/** 外部快捷捕捉与剪藏配置 */
+export interface InboxConfig {
+  token: string
+  endpointUrl: string
+  curlExample: string
+  instruction: string
+}
+
+export function getPublishedBacklinks(slug: string) {
+  return get<Backlink[]>(`/blog/posts/${encodeURIComponent(slug)}/backlinks`)
+}
+
+export function getNoteBacklinks(id: number) {
+  return get<Backlink[]>(`/notes/${id}/backlinks`)
+}
+
+export function getSearchInsights(days = 30, limit = 20) {
+  return get<SearchInsights>(`/search/insights?days=${days}&limit=${limit}`)
+}
+
+export function getInboxConfig() {
+  return get<InboxConfig>('/admin/inbox/config')
+}

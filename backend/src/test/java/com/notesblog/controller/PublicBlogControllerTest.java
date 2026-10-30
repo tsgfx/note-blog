@@ -50,6 +50,10 @@ class PublicBlogControllerTest {
     private com.notesblog.service.RelatedNoteService relatedNoteService;
     @MockitoBean
     private com.notesblog.service.RecommendationService recommendationService;
+    @MockitoBean
+    private com.notesblog.service.BacklinkService backlinkService;
+    @MockitoBean
+    private com.notesblog.service.SearchAnalyticsService searchAnalyticsService;
     // 切片会扫到 JwtAuthFilter 与主启动类的 seedAdmin
     @MockitoBean
     private com.notesblog.service.JwtService jwtService;

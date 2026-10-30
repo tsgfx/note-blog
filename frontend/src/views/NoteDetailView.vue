@@ -7,14 +7,18 @@ import {
   getPublishedNote,
   getPublishedRelatedNotes,
   getRelatedNotes,
+  getPublishedBacklinks,
+  getNoteBacklinks,
   publishNote,
   recordPostView,
   unpublishNote,
   type NoteDetail,
   type RelatedNote,
+  type Backlink,
 } from '../api/notes'
 import { isLoggedIn } from '../api/auth'
 import CommentList from '../components/CommentList.vue'
+import ShareQuoteModal from '../components/ShareQuoteModal.vue'
 import { buildOutline, renderMarkdown, type OutlineItem } from '../lib/markdown'
 import { notify } from '../lib/feedback'
 import { openDrawer } from '../lib/askState'
@@ -33,6 +37,13 @@ const showMobileToc = ref(false)
 const linkCopied = ref(false)
 const lightbox = ref('')
 const related = ref<RelatedNote[]>([])
+const backlinks = ref<Backlink[]>([])
+
+// 划词金句卡片状态
+const quoteModalOpen = ref(false)
+const selectedQuoteText = ref('')
+const quoteBtnPos = ref<{ x: number; y: number } | null>(null)
+
 const isPublicRoute = computed(() => route.name === 'blog-detail')
 const canEdit = computed(() => !isPublicRoute.value && isLoggedIn())
 const html = computed(() => (note.value ? renderMarkdown(note.value.contentMd) : ''))
@@ -119,6 +130,59 @@ async function load() {
     syncActive()
   }
   loadRelated()
+  loadBacklinks()
+}
+
+/**
+ * 反向链接（提及本文的笔记）
+ */
+async function loadBacklinks() {
+  if (!note.value) return
+  try {
+    backlinks.value = isPublicRoute.value
+      ? await getPublishedBacklinks(note.value.slug)
+      : await getNoteBacklinks(note.value.id)
+  } catch {
+    backlinks.value = []
+  }
+}
+
+/**
+ * 监听读者选中正文，当选中长度在 4-400 字之间时，在选区上方轻量浮出「生成金句卡片」按钮
+ */
+function handleSelectionChange() {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed || !article.value) {
+    quoteBtnPos.value = null
+    return
+  }
+  const text = selection.toString().trim()
+  if (text.length < 4 || text.length > 400) {
+    quoteBtnPos.value = null
+    return
+  }
+
+  // 确保选区在正文内
+  try {
+    const range = selection.getRangeAt(0)
+    if (!article.value.contains(range.commonAncestorContainer)) {
+      quoteBtnPos.value = null
+      return
+    }
+    const rect = range.getBoundingClientRect()
+    selectedQuoteText.value = text
+    quoteBtnPos.value = {
+      x: Math.max(16, rect.left + rect.width / 2),
+      y: Math.max(10, rect.top - 46),
+    }
+  } catch {
+    quoteBtnPos.value = null
+  }
+}
+
+function openQuoteModal() {
+  quoteModalOpen.value = true
+  quoteBtnPos.value = null
 }
 
 function recordReadingHistory(slug: string) {
@@ -294,11 +358,13 @@ onMounted(() => {
   load()
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('keydown', onKeydown)
+  document.addEventListener('selectionchange', handleSelectionChange)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('selectionchange', handleSelectionChange)
 })
 </script>
 
@@ -478,6 +544,27 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <!-- 双向链接（反向引用） -->
+        <section v-if="backlinks.length" class="backlinks-section" aria-label="反向链接">
+          <p class="backlinks-title">
+            <span class="backlink-icon" aria-hidden="true">🔗</span> 提及本文的笔记 ({{ backlinks.length }})
+          </p>
+          <div class="backlinks-grid">
+            <RouterLink
+              v-for="b in backlinks"
+              :key="b.id"
+              class="backlink-card"
+              :to="isPublicRoute ? `/blog/${b.slug}` : `/notes/${b.slug}`"
+            >
+              <div class="backlink-card-head">
+                <span class="backlink-name">{{ b.title }}</span>
+                <span v-if="b.series" class="backlink-badge">{{ b.series }}</span>
+              </div>
+              <p class="backlink-snippet">{{ b.snippet }}</p>
+            </RouterLink>
+          </div>
+        </section>
+
         <!-- 评论只出现在公开文章下：/notes/:slug 是管理员的私有视图，
              在那里显示公开评论区会让人以为游客能看到草稿 -->
         <CommentList v-if="isPublicRoute && note" :slug="note.slug" />
@@ -538,6 +625,28 @@ onBeforeUnmount(() => {
         <img :src="lightbox" alt="" />
       </div>
     </Transition>
+
+    <!-- 划词生成金句分享气泡按钮 -->
+    <Transition name="fade">
+      <button
+        v-if="quoteBtnPos"
+        class="floating-quote-btn"
+        type="button"
+        :style="{ left: `${quoteBtnPos.x}px`, top: `${quoteBtnPos.y}px` }"
+        @click="openQuoteModal"
+      >
+        <span class="sparkle" aria-hidden="true">✦</span> 生成金句卡片
+      </button>
+    </Transition>
+
+    <!-- 金句分享卡片弹窗 -->
+    <ShareQuoteModal
+      :open="quoteModalOpen"
+      :quote="selectedQuoteText"
+      :article-title="note?.title || ''"
+      :article-slug="note?.slug || ''"
+      @close="quoteModalOpen = false"
+    />
   </div>
 </template>
 
@@ -1213,5 +1322,130 @@ onBeforeUnmount(() => {
   color: var(--pen);
   font-weight: 500;
   background: var(--pen-soft);
+}
+
+/* ───────── 双向链接（反向引用） ───────── */
+.backlinks-section {
+  max-width: var(--measure);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--hairline);
+}
+
+.backlinks-title {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.backlink-icon {
+  font-size: 13px;
+}
+
+.backlinks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
+.backlink-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-decoration: none;
+  transition:
+    border-color var(--dur-1) var(--ease-soft),
+    transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-soft);
+}
+
+.backlink-card:hover {
+  border-color: var(--pen);
+  transform: translateY(-2px);
+  box-shadow: var(--lift-2);
+}
+
+.backlink-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.backlink-name {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.backlink-badge {
+  font-size: 11px;
+  color: var(--pen);
+  background: var(--pen-soft, rgba(46, 117, 182, 0.08));
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.backlink-snippet {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  opacity: 0.85;
+}
+
+/* ───────── 划词浮动金句生成按钮 ───────── */
+.floating-quote-btn {
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  background: var(--pen-ink, #244a45);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: floatPop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.1s ease,
+    background 0.15s ease;
+}
+
+.floating-quote-btn:hover {
+  transform: translateX(-50%) scale(1.04);
+  background: var(--pen, #2f5d57);
+}
+
+@keyframes floatPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 </style>

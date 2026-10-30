@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/**", "/api/blog/**").permitAll()
+                        // 开放剪藏接口（由 Controller 内部根据 X-Inbox-Token 或 Bearer Token 进行鉴权）
+                        .requestMatchers("/api/inbox/quick-capture").permitAll()
                         // 问答对游客开放：游客额度与检索范围在 AskController 里按身份区分。
                         // 注意放行的是「能调用」，不是「能看全库」——游客只检索已发布分片。
                         .requestMatchers("/api/ask").permitAll()

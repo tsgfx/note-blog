@@ -2,7 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { changePassword, logout } from '../api/auth'
-import { generateMetaBatch, reindexMissingNotes } from '../api/notes'
+import {
+  generateMetaBatch,
+  reindexMissingNotes,
+  getSearchInsights,
+  getInboxConfig,
+  type SearchInsights,
+  type InboxConfig,
+} from '../api/notes'
 import {
   getBackupStatus,
   getHealth,
@@ -67,7 +74,39 @@ async function loadStatus() {
   integrityLoading.value = false
 }
 
-onMounted(loadStatus)
+const searchInsights = ref<SearchInsights | null>(null)
+const searchInsightsLoading = ref(true)
+const inboxConfig = ref<InboxConfig | null>(null)
+const showToken = ref(false)
+
+async function loadInsightsAndInbox() {
+  searchInsightsLoading.value = true
+  try {
+    const [insightsRes, inboxRes] = await Promise.allSettled([getSearchInsights(30, 15), getInboxConfig()])
+    if (insightsRes.status === 'fulfilled') {
+      searchInsights.value = insightsRes.value
+    }
+    if (inboxRes.status === 'fulfilled') {
+      inboxConfig.value = inboxRes.value
+    }
+  } finally {
+    searchInsightsLoading.value = false
+  }
+}
+
+async function copyText(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    notify(`${label}已复制到剪贴板`, 'success')
+  } catch {
+    notify('复制失败，请手动选取', 'error')
+  }
+}
+
+onMounted(() => {
+  loadStatus()
+  loadInsightsAndInbox()
+})
 
 /** 相对时间：备份状态看的是「多久以前」，精确到秒没有意义 */
 function relative(iso?: string): string {
@@ -420,12 +459,138 @@ async function submit() {
         {{ reindexRunning ? '排队中…' : '补建缺失索引' }}
       </button>
     </section>
+
+    <!-- 读者搜索洞察 · 选题雷达 -->
+    <section class="backup" aria-labelledby="insights-title">
+      <header class="backup-head">
+        <h2 id="insights-title" class="backup-title">
+          <span class="sparkle" aria-hidden="true">✦</span> 读者搜索洞察 · 选题雷达
+        </h2>
+        <button
+          class="btn btn-text btn-sm"
+          type="button"
+          :disabled="searchInsightsLoading"
+          @click="loadInsightsAndInbox"
+        >
+          {{ searchInsightsLoading ? '刷新中' : '刷新' }}
+        </button>
+      </header>
+
+      <p class="muted">统计近 30 天读者的搜索行为。重点关注「搜了但没搜到」的词，它们是下一篇博客的最佳选题来源。</p>
+
+      <div v-if="searchInsights" class="insights-summary-grid">
+        <div class="insight-tile">
+          <span class="insight-label">30天检索量</span>
+          <span class="insight-val">{{ searchInsights.totalSearches }} <small>次</small></span>
+        </div>
+        <div class="insight-tile">
+          <span class="insight-label">零结果未命中</span>
+          <span class="insight-val">{{ searchInsights.zeroHitSearches }} <small>次</small></span>
+        </div>
+        <div class="insight-tile">
+          <span class="insight-label">未命中率</span>
+          <span class="insight-val">{{ searchInsights.zeroHitRate }}%</span>
+        </div>
+      </div>
+
+      <div v-if="searchInsights && searchInsights.topZeroHits.length" class="insights-block">
+        <h3 class="insights-subhead">💡 读者在搜但库里没有的词（高频未满足需求）</h3>
+        <ul class="insights-list">
+          <li v-for="item in searchInsights.topZeroHits" :key="item.query" class="insights-row">
+            <span class="insights-query-tag">{{ item.query }}</span>
+            <span class="insights-query-count">{{ item.count }} 次未命中</span>
+            <span class="insights-query-time">最近检索于 {{ relative(item.lastSearchedAt) }}</span>
+          </li>
+        </ul>
+      </div>
+      <p v-else-if="searchInsights" class="muted maint-gap">暂无零结果搜索记录，读者的检索需求均已得到有效匹配。</p>
+
+      <div v-if="searchInsights && searchInsights.topQueries.length" class="insights-block">
+        <h3 class="insights-subhead">🔥 读者最关心的热门技术检索</h3>
+        <ul class="insights-list">
+          <li v-for="item in searchInsights.topQueries" :key="item.query" class="insights-row">
+            <span class="insights-query-tag popular">{{ item.query }}</span>
+            <span class="insights-query-count">{{ item.count }} 次搜索</span>
+            <span class="insights-query-time">平均命中 {{ item.avgHits }} 篇笔记</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 开放快捷捕捉与剪藏 API -->
+    <section class="backup" aria-labelledby="inbox-api-title">
+      <header class="backup-head">
+        <h2 id="inbox-api-title" class="backup-title">
+          <span class="lightning-icon" aria-hidden="true">⚡</span> 快捷捕捉与外部剪藏 API
+        </h2>
+      </header>
+
+      <p class="muted">
+        支持通过 iOS 快捷指令（Shortcuts）、Raycast 扩展、Alfred 脚本或外部自动化工具随时向博客草稿库写入灵感。
+      </p>
+
+      <div v-if="inboxConfig" class="inbox-config-box">
+        <div class="field-block">
+          <label class="field-label">接口地址 (Webhook URL)</label>
+          <div class="copy-input-row">
+            <input class="field field-code" type="text" readonly :value="inboxConfig.endpointUrl" />
+            <button class="btn btn-ghost btn-sm" type="button" @click="copyText(inboxConfig.endpointUrl, '接口地址')">
+              复制
+            </button>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <label class="field-label">授权 Token (X-Inbox-Token)</label>
+          <div class="copy-input-row">
+            <input
+              class="field field-code"
+              :type="showToken ? 'text' : 'password'"
+              readonly
+              :value="inboxConfig.token"
+            />
+            <button class="btn btn-ghost btn-sm" type="button" @click="showToken = !showToken">
+              {{ showToken ? '隐藏' : '显示' }}
+            </button>
+            <button class="btn btn-ghost btn-sm" type="button" @click="copyText(inboxConfig.token, 'Token')">
+              复制
+            </button>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <label class="field-label">终端测试命令 (cURL)</label>
+          <div class="code-copy-wrapper">
+            <pre class="curl-code-snippet"><code>{{ inboxConfig.curlExample }}</code></pre>
+            <button
+              class="btn btn-ghost btn-sm copy-snippet-btn"
+              type="button"
+              @click="copyText(inboxConfig.curlExample, '测试命令')"
+            >
+              复制代码
+            </button>
+          </div>
+        </div>
+
+        <div class="shortcut-tip">
+          <strong>📱 如何配置 iOS 快捷指令：</strong>
+          <ol class="shortcut-steps">
+            <li>在「快捷指令」App 新建一个接收文本或分享输入的动作；</li>
+            <li>添加「获取 URL 内容」，方法选 <code>POST</code>，填入上方 Webhook 地址；</li>
+            <li>
+              请求头添加 <code>X-Inbox-Token: 你的Token</code>，请求体 JSON 传递
+              <code>{"content": 快捷指令输入}</code> 即可！
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
   </section>
 </template>
 
 <style scoped>
 .settings {
-  max-width: 480px;
+  max-width: 620px;
 }
 
 .settings-form {
@@ -668,5 +833,177 @@ async function submit() {
   border-left-color: var(--ok);
   color: var(--ink-2);
   background: var(--pen-soft);
+}
+
+/* ───────── 搜索洞察 · 选题雷达 ───────── */
+.insights-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.insight-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.insight-label {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.insight-val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--pen);
+}
+
+.insight-val small {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--ink-3);
+}
+
+.insights-block {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.insights-subhead {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.insights-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insights-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--hairline);
+}
+.insights-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.insights-query-tag {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(164, 67, 58, 0.08);
+  color: var(--danger);
+}
+
+.insights-query-tag.popular {
+  background: var(--pen-soft);
+  color: var(--pen);
+}
+
+.insights-query-count {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.insights-query-time {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* ───────── 快捷捕捉与外部剪藏 API ───────── */
+.inbox-config-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.copy-input-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.field-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--paper-deep);
+}
+
+.code-copy-wrapper {
+  position: relative;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  overflow-x: auto;
+}
+
+.curl-code-snippet {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.copy-snippet-btn {
+  margin-top: 8px;
+}
+
+.shortcut-tip {
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-deep);
+  border-left: 3px solid var(--pen);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.shortcut-steps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.shortcut-steps li {
+  margin-bottom: 4px;
+}
+.shortcut-steps code {
+  font-family: var(--font-mono);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.sparkle {
+  color: var(--pen);
+}
+
+.lightning-icon {
+  color: #d97706;
 }
 </style>

@@ -179,3 +179,16 @@ CREATE TABLE IF NOT EXISTS usage_collector_state (
   PRIMARY KEY (id),
   UNIQUE KEY uk_collector_id (collector_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── 搜索日志与未命中词洞察 ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS search_logs (
+  id          BIGINT       NOT NULL AUTO_INCREMENT,
+  query       VARCHAR(128) NOT NULL,
+  hit_count   INT          NOT NULL DEFAULT 0,
+  client_ip   VARCHAR(64)  DEFAULT NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_search_query (query),
+  KEY idx_search_hit (hit_count),
+  KEY idx_search_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -54,6 +54,8 @@ class NoteControllerTest {
     @MockitoBean
     private com.notesblog.service.PublishPreflightService publishPreflightService;
     @MockitoBean
+    private com.notesblog.service.BacklinkService backlinkService;
+    @MockitoBean
     private TokenVersionService tokenVersionService;
     /** 主启动类里的 seedAdmin 也会被加载，需要这个依赖 */
     @MockitoBean

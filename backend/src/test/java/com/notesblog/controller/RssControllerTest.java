@@ -102,4 +102,19 @@ class RssControllerTest {
 
         mockMvc.perform(get("/api/blog/rss.xml")).andExpect(status().isOk());
     }
+
+    @Test
+    @DisplayName("同时支持 /feed.xml 和 /atom.xml 别名路由，方便各类阅读器拉取")
+    void supportsFeedAndAtomAliases() throws Exception {
+        when(noteRepository.findByStatus(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<>(List.of(note("标题", "摘要", "正文")), invocation.getArgument(1), 1));
+
+        mockMvc.perform(get("/api/blog/feed.xml"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("application/rss+xml"));
+
+        mockMvc.perform(get("/api/blog/atom.xml"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("application/rss+xml"));
+    }
 }
