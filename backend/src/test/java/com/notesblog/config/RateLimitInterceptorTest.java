@@ -106,4 +106,32 @@ class RateLimitInterceptorTest {
         verify(res).setStatus(429);
         verify(res).setHeader("Retry-After", "42");
     }
+
+    @Test
+    @DisplayName("带 slug 的通配规则能命中，且按规则而不是按具体 URI 计数")
+    void wildcardRuleMatchesAndSharesCounter() throws Exception {
+        RateLimitInterceptor viewLimiter = new RateLimitInterceptor(rateLimiter,
+                Map.of(RateLimitConfig.VIEW_PATH, new RateLimitInterceptor.Rule(30, Duration.ofMinutes(1))));
+        HttpServletRequest req = request(DispatcherType.REQUEST);
+        when(req.getRequestURI()).thenReturn("/api/blog/posts/some-slug/view");
+        when(rateLimiter.acquire(anyString(), anyInt(), any()))
+                .thenReturn(new RateLimiter.Decision(true, 0));
+
+        assertThat(viewLimiter.preHandle(req, response(), new Object())).isTrue();
+
+        // 换 slug 必须共用一份额度，否则一个循环换着 slug 刷就是无限额度
+        org.mockito.ArgumentCaptor<String> keys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(rateLimiter).acquire(keys.capture(), anyInt(), any());
+        assertThat(keys.getValue()).startsWith(RateLimitConfig.VIEW_PATH + "|");
+    }
+
+    @Test
+    @DisplayName("没有规则命中的 URI 直接放行，不计数")
+    void unmatchedUriPassesThrough() throws Exception {
+        HttpServletRequest req = request(DispatcherType.REQUEST);
+        when(req.getRequestURI()).thenReturn("/api/notes/1");
+
+        assertThat(interceptor.preHandle(req, response(), new Object())).isTrue();
+        verify(rateLimiter, never()).acquire(anyString(), anyInt(), any());
+    }
 }

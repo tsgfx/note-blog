@@ -102,6 +102,9 @@ app:
     # 端到端实测过：设成 10 而日上限 15 时，游客第 11 次就被分钟限流拦。
     ask-per-minute: ${RATE_LIMIT_ASK:25}
     search-per-minute: ${RATE_LIMIT_SEARCH:60}
+    # 阅读量计数：正常读者一篇文章在一个会话里只上报一次，30/分钟足够；
+    # 不限流的话一个 curl 循环就能把自己刷成「热门第一」。
+    view-per-minute: ${RATE_LIMIT_VIEW:30}
 
   guest:
     # 游客每日问答条数：对单个浏览器的承诺值，前端据此显示「还可提问 N 次」。

@@ -14,7 +14,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * 接口限流的注册。
  *
- * <p>目前只管两个"贵"的接口：问答要花 LLM token，搜索要做向量检索。
+ * <p>目前只管三个接口：问答要花 LLM token，搜索要做向量检索，
+ * 阅读量上报是公开写接口、不设上限会被脚本刷榜。
  * 其它接口是本地 CRUD，限流只会给自己添麻烦。
  *
  * <p><b>为什么用 {@link ObjectProvider} 而不是直接注入：</b>
@@ -28,6 +29,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 @RequiredArgsConstructor
 public class RateLimitConfig implements WebMvcConfigurer {
+
+    /** 阅读量上报：slug 占一段，用单层通配。 */
+    static final String VIEW_PATH = "/api/blog/posts/*/view";
 
     private final ObjectProvider<RateLimiter> rateLimiterProvider;
 
@@ -49,6 +53,16 @@ public class RateLimitConfig implements WebMvcConfigurer {
     @Value("${app.rate-limit.search-per-minute:60}")
     private int searchPerMinute;
 
+    /**
+     * 阅读量上报的每分钟上限。
+     *
+     * <p>正常读者一篇一个会话只报一次，30/分钟对任何真人都够用；
+     * 这条规则挡的是脚本——阅读量现在既上榜单又参与排序，
+     * 不设上限的话一个 curl 循环就能把任意文章刷到「热门第一」。
+     */
+    @Value("${app.rate-limit.view-per-minute:30}")
+    private int viewPerMinute;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         RateLimiter rateLimiter = rateLimiterProvider.getIfAvailable();
@@ -59,9 +73,10 @@ public class RateLimitConfig implements WebMvcConfigurer {
 
         Map<String, RateLimitInterceptor.Rule> rules = Map.of(
                 "/api/ask", new RateLimitInterceptor.Rule(askPerMinute, Duration.ofMinutes(1)),
-                "/api/search", new RateLimitInterceptor.Rule(searchPerMinute, Duration.ofMinutes(1)));
+                "/api/search", new RateLimitInterceptor.Rule(searchPerMinute, Duration.ofMinutes(1)),
+                VIEW_PATH, new RateLimitInterceptor.Rule(viewPerMinute, Duration.ofMinutes(1)));
 
         registry.addInterceptor(new RateLimitInterceptor(rateLimiter, rules))
-                .addPathPatterns("/api/ask", "/api/search");
+                .addPathPatterns("/api/ask", "/api/search", VIEW_PATH);
     }
 }

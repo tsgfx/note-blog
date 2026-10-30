@@ -34,6 +34,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final Map<String, Rule> rules;
 
     /**
+     * 规则里的路径可以带一段通配，比如阅读量上报是
+     * {@code /api/blog/posts/*}/view：slug 是路径的一部分，没法写死。
+     */
+    private static final org.springframework.util.AntPathMatcher MATCHER =
+            new org.springframework.util.AntPathMatcher();
+
+    /**
      * 已登录用户（管理员）不受分钟限流约束的路径。
      *
      * <p>问答已对游客开放：游客的约束是「每天 N 条」（GuestQuotaService，落库），
@@ -46,6 +53,18 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
         Rule rule = rules.get(request.getRequestURI());
+        String keyBase = request.getRequestURI();
+        if (rule == null) {
+            // 精确匹配没命中时再按通配找一次（只有少量规则，遍历成本可忽略）
+            for (Map.Entry<String, Rule> entry : rules.entrySet()) {
+                if (MATCHER.match(entry.getKey(), request.getRequestURI())) {
+                    rule = entry.getValue();
+                    // 计数按规则模式而不是具体 URI：否则刷子换个 slug 就是一份新额度
+                    keyBase = entry.getKey();
+                    break;
+                }
+            }
+        }
         if (rule == null) return true;
 
         // 只对最初的 REQUEST 派发计数。
@@ -63,7 +82,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         // key 里带上路径：问答和搜索各自独立计数，不互相挤占
-        String key = request.getRequestURI() + "|" + ClientIp.of(request);
+        String key = keyBase + "|" + ClientIp.of(request);
         RateLimiter.Decision decision = rateLimiter.acquire(key, rule.limit(), rule.window());
         if (decision.allowed()) return true;
 
