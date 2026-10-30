@@ -94,6 +94,11 @@ const error = ref('')
 /** 当前选中的目录路径；空字符串 = 全部。第一段就是原来的「库」 */
 const activePath = ref<string>('')
 const status = ref<'ALL' | 'PUBLISHED' | 'DRAFT'>('ALL')
+/**
+ * 列表排序。默认按最近改动（日常管理最常用），
+ * 「按阅读量」是作者回看「哪几篇真的有人读」时的入口。
+ */
+const sort = ref<'updated' | 'views'>('updated')
 const query = ref('')
 const page = ref(0)
 const totalPages = ref(0)
@@ -182,6 +187,7 @@ async function load(target = 0) {
       path: activePath.value || undefined,
       q: query.value.trim() || undefined,
       tag: activeTags.value.length ? activeTags.value : undefined,
+      sort: sort.value === 'views' ? 'views' : undefined,
       page: target,
       size: PAGE_SIZE,
     })
@@ -302,6 +308,13 @@ function pickStatus(next: 'ALL' | 'PUBLISHED' | 'DRAFT') {
   loadTags()
   // 树上的篇数跟着状态变
   loadFolders()
+}
+
+/** 排序切换只影响列表本身，不动目录树与标签统计 */
+function toggleSort() {
+  sort.value = sort.value === 'views' ? 'updated' : 'views'
+  clearSelection()
+  load(0)
 }
 
 /** 一次性清掉三个筛选条件。分开调用会触发三次请求，所以合成一个。 */
@@ -700,6 +713,16 @@ onBeforeUnmount(() => {
             <input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAllVisible" />
             全选本页
           </label>
+          <button
+            class="sort-toggle"
+            type="button"
+            :class="{ on: sort === 'views' }"
+            :aria-pressed="sort === 'views'"
+            :title="sort === 'views' ? '按阅读量排序（点一下回到最近改动）' : '按最近改动排序（点一下按阅读量）'"
+            @click="toggleSort"
+          >
+            {{ sort === 'views' ? '按阅读量' : '按改动' }}
+          </button>
         </div>
 
         <Transition name="bulk">
@@ -1240,6 +1263,34 @@ onBeforeUnmount(() => {
 
 .segments button.on::after {
   transform: scaleX(1);
+}
+
+/* 排序开关：同一颗按钮来回切，比两个 tab 省地方，也不必解释哪个是默认 */
+.sort-toggle {
+  padding: 3px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--dur-1),
+    border-color var(--dur-1),
+    background-color var(--dur-1);
+}
+
+.sort-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.sort-toggle.on {
+  color: var(--pen);
+  border-color: var(--pen);
+  background: var(--paper-deep);
 }
 
 .select-all {

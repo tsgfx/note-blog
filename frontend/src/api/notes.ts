@@ -108,6 +108,8 @@ export function listNotes(
     library?: string
     q?: string
     tag?: string[]
+    /** updated（默认）/ views（按阅读量）/ published（按发布时间） */
+    sort?: 'updated' | 'views' | 'published'
     page?: number
     size?: number
   } = {},

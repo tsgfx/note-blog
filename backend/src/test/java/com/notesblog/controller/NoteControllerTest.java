@@ -1,5 +1,6 @@
 package com.notesblog.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -163,6 +164,28 @@ class NoteControllerTest {
 
         mockMvc.perform(get("/api/notes?page=-1&size=0").header("Authorization", bearer()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("sort=views 按阅读量降序；默认按最近改动")
+    void sortParamMapsToOrder() throws Exception {
+        when(noteService.list(any(), any(), any(), any(), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        mockMvc.perform(get("/api/notes?sort=views").header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> captor =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        org.mockito.Mockito.verify(noteService).list(any(), any(), any(), any(), captor.capture());
+        assertThat(captor.getValue().getSort().getOrderFor("viewCount")).isNotNull();
+        assertThat(captor.getValue().getSort().getOrderFor("viewCount").isDescending()).isTrue();
+
+        mockMvc.perform(get("/api/notes").header("Authorization", bearer()))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(noteService,
+                org.mockito.Mockito.atLeast(2)).list(any(), any(), any(), any(), captor.capture());
+        assertThat(captor.getAllValues().get(1).getSort().getOrderFor("updatedAt")).isNotNull();
     }
 
     @Test
