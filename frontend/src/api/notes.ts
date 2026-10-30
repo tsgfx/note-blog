@@ -157,9 +157,7 @@ export function getPublishedNote(slug: string) {
 }
 
 export function listPublishedNotes(
-  params:
-    | { page?: number; size?: number; tag?: string; keyword?: string; sort?: 'recent' | 'views' }
-    | number = 0,
+  params: { page?: number; size?: number; tag?: string; keyword?: string; sort?: 'recent' | 'views' } | number = 0,
   size = 20,
 ) {
   if (typeof params === 'number') {

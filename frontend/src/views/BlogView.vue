@@ -127,7 +127,8 @@ function clearKeyword() {
 
 function clearAllFilters() {
   searchInput.value = ''
-  router.push({ query: {} })
+  // 只清筛选，排序是读者主动选的视角，不该被一起重置
+  router.push({ query: currentSort.value === 'views' ? { sort: 'views' } : {} })
 }
 
 async function load(target = 0) {
@@ -327,7 +328,13 @@ onMounted(() => {
     <div v-else class="empty-state">
       <p class="empty-title">{{ hasFilter ? '没有找到符合条件的文章' : '还没有公开的文章' }}</p>
       <p class="empty-hint">
-        {{ hasFilter ? '换个关键词或标签试试看。' : (signedIn ? '在「笔记」里点击「发布」，文章就会出现在这里。' : '作者还没有发布任何内容。') }}
+        {{
+          hasFilter
+            ? '换个关键词或标签试试看。'
+            : signedIn
+              ? '在「笔记」里点击「发布」，文章就会出现在这里。'
+              : '作者还没有发布任何内容。'
+        }}
       </p>
       <div v-if="hasFilter" class="empty-actions">
         <button class="btn btn-primary btn-sm" type="button" @click="clearAllFilters">清除筛选条件</button>

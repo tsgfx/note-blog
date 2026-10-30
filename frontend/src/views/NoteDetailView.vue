@@ -109,9 +109,7 @@ async function loadRelated() {
 
 async function copyShareLink() {
   if (!note.value) return
-  const url = isPublicRoute.value
-    ? `${window.location.origin}/blog/${note.value.slug}`
-    : window.location.href
+  const url = isPublicRoute.value ? `${window.location.origin}/blog/${note.value.slug}` : window.location.href
   try {
     await navigator.clipboard.writeText(url)
     linkCopied.value = true
@@ -268,9 +266,17 @@ onBeforeUnmount(() => {
       <template v-else-if="note">
         <header class="reader-head">
           <p class="crumb muted">
-            <RouterLink v-if="canEdit" to="/notes">笔记</RouterLink>
-            <span v-if="canEdit"> / </span>
-            {{ folder || '根目录' }}
+            <!-- 公开页用「文章」做入口：读者从博客列表进来，回退路径要和来时一致 -->
+            <template v-if="isPublicRoute">
+              <RouterLink to="/blog">文章</RouterLink>
+              <span> / </span>
+              <span class="crumb-here">{{ note.title }}</span>
+            </template>
+            <template v-else>
+              <RouterLink v-if="canEdit" to="/notes">笔记</RouterLink>
+              <span v-if="canEdit"> / </span>
+              {{ folder || '根目录' }}
+            </template>
           </p>
           <h1 class="reader-title">{{ note.title }}</h1>
           <div class="reader-meta">
@@ -297,12 +303,7 @@ onBeforeUnmount(() => {
                 <span v-for="tag in note.tags" :key="tag" class="meta-tag">{{ tag }}</span>
               </template>
             </span>
-            <button
-              type="button"
-              class="copy-link-btn"
-              title="复制文章分享链接"
-              @click="copyShareLink"
-            >
+            <button type="button" class="copy-link-btn" title="复制文章分享链接" @click="copyShareLink">
               <svg viewBox="0 0 24 24" class="copy-link-icon" aria-hidden="true">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -374,21 +375,13 @@ onBeforeUnmount(() => {
 
         <!-- 相邻文章导航（公开文章视图） -->
         <nav v-if="isPublicRoute && (note.prev || note.next)" class="adjacent-nav" aria-label="相邻文章导航">
-          <RouterLink
-            v-if="note.prev"
-            :to="`/blog/${note.prev.slug}`"
-            class="adjacent-card adjacent-prev"
-          >
+          <RouterLink v-if="note.prev" :to="`/blog/${note.prev.slug}`" class="adjacent-card adjacent-prev">
             <span class="adjacent-hint">← 上一篇</span>
             <span class="adjacent-title">{{ note.prev.title }}</span>
           </RouterLink>
           <div v-else class="adjacent-empty" />
 
-          <RouterLink
-            v-if="note.next"
-            :to="`/blog/${note.next.slug}`"
-            class="adjacent-card adjacent-next"
-          >
+          <RouterLink v-if="note.next" :to="`/blog/${note.next.slug}`" class="adjacent-card adjacent-next">
             <span class="adjacent-hint">下一篇 →</span>
             <span class="adjacent-title">{{ note.next.title }}</span>
           </RouterLink>
@@ -435,7 +428,9 @@ onBeforeUnmount(() => {
         <div class="toc-sheet" @click.stop>
           <div class="toc-sheet-header">
             <span class="toc-sheet-title">文章目录</span>
-            <button type="button" class="toc-sheet-close" aria-label="关闭目录" @click="showMobileToc = false">×</button>
+            <button type="button" class="toc-sheet-close" aria-label="关闭目录" @click="showMobileToc = false">
+              ×
+            </button>
           </div>
           <div class="toc-sheet-body">
             <button
@@ -506,6 +501,17 @@ onBeforeUnmount(() => {
 
 .crumb {
   margin-bottom: var(--space-3);
+}
+
+/* 落点是文章标题本身：面包屑最后一段截断，不把整行挤掉 */
+.crumb-here {
+  display: inline-block;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--ink-3);
 }
 
 .reader-title {
