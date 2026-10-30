@@ -764,6 +764,11 @@ onBeforeUnmount(() => {
                 <span class="folder">{{ folderOf(note) }}</span>
                 <span class="dot">·</span>
                 <span>{{ dateOf(note.updatedAt) }}</span>
+                <!-- 阅读量只对已发布文章有意义：草稿的 0 是"没人能看"，不是"没人想看" -->
+                <template v-if="note.status === 'PUBLISHED'">
+                  <span class="dot">·</span>
+                  <span class="views" :title="`公开页阅读量 ${note.viewCount ?? 0}`">{{ note.viewCount ?? 0 }} 阅</span>
+                </template>
                 <span v-for="tag in note.tags.slice(0, 2)" :key="tag" class="tag">#{{ tag }}</span>
               </div>
             </div>
@@ -1398,6 +1403,12 @@ onBeforeUnmount(() => {
   color: var(--ink-3);
   font-size: 11px;
   line-height: 1.6;
+}
+
+/* 阅读量与日期同色系但不抢眼：它是参考信息，不是状态 */
+.views {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .row:hover .tag {

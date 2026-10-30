@@ -18,6 +18,7 @@ import CommentList from '../components/CommentList.vue'
 import { buildOutline, renderMarkdown, type OutlineItem } from '../lib/markdown'
 import { notify } from '../lib/feedback'
 import { openDrawer } from '../lib/askState'
+import { applyArticleSeo, plainText } from '../lib/seo'
 
 const route = useRoute()
 const note = ref<NoteDetail | null>(null)
@@ -73,6 +74,8 @@ async function load() {
     note.value = isPublicRoute.value ? await getPublishedNote(slug) : await getNote(slug)
     if (isPublicRoute.value && note.value) {
       recordViewOnce(note.value.slug)
+      // 公开文章用文章自己的标题与摘要：标签页、浏览器历史、分享预览才认得出来
+      applyArticleSeo(note.value.title, note.value.summary || plainText(note.value.contentMd))
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -279,7 +282,20 @@ onBeforeUnmount(() => {
               <span>{{ note.viewCount }} 次阅读</span>
             </template>
             <span v-if="note.tags.length" class="meta-tags">
-              <span v-for="tag in note.tags" :key="tag" class="meta-tag">{{ tag }}</span>
+              <!-- 公开页的标签是入口：点一下就看同标签的全部文章；管理页保持纯展示 -->
+              <template v-if="isPublicRoute">
+                <RouterLink
+                  v-for="tag in note.tags"
+                  :key="tag"
+                  class="meta-tag meta-tag-link"
+                  :to="{ path: '/blog', query: { tag } }"
+                >
+                  {{ tag }}
+                </RouterLink>
+              </template>
+              <template v-else>
+                <span v-for="tag in note.tags" :key="tag" class="meta-tag">{{ tag }}</span>
+              </template>
             </span>
             <button
               type="button"
@@ -524,6 +540,20 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: var(--paper-deep);
   font-size: 11px;
+}
+
+/* 可点的标签：底纹在悬浮时转成主题色，和不可点的纯展示标签区分开 */
+.meta-tag-link {
+  color: var(--ink-3);
+  transition:
+    color var(--dur-1) var(--ease-soft),
+    background-color var(--dur-1) var(--ease-soft);
+}
+
+.meta-tag-link:hover {
+  background: var(--pen-soft);
+  color: var(--pen);
+  text-decoration: none;
 }
 
 .reader-actions {
