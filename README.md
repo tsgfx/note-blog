@@ -305,8 +305,12 @@ cp .env.example .env
 | POST | `/api/ask` | RAG 问答，SSE 流式（**公开**；游客按 IP 每日限次，管理员不限） |
 | GET | `/api/assets/**` | 图片读取（公开；匿名只放行已发布文章引用的图） |
 | POST | `/api/assets` | 上传图片（multipart，仅 png/jpg/gif/webp，≤10MB） |
-| GET | `/api/blog/posts` | 已发布文章列表（公开） |
-| GET | `/api/blog/posts/{slug}` | 已发布文章详情（公开） |
+| GET | `/api/blog/posts` | 已发布文章列表（公开；`tag` / `keyword` 过滤，`sort=recent\|views` 排序） |
+| GET | `/api/blog/posts/{slug}` | 已发布文章详情（公开；带上一篇/下一篇与阅读量） |
+| POST | `/api/blog/posts/{slug}/view` | 阅读量 +1（公开；每分钟限流，独立端点以免破坏详情页 ETag） |
+| GET | `/api/blog/posts/{slug}/related` | 相关文章推荐（公开；只推已发布，语义相似度） |
+| GET | `/api/blog/tags` | 热门标签与篇数（公开；只统计已发布） |
+| GET | `/api/blog/stats` | 篇数 / 标签数 / 最近发布时间（公开；不含笔记总数） |
 | POST | `/api/blog/search` | 游客语义搜索，**只返回已发布文章**（公开） |
 | GET | `/api/blog/posts/{slug}/comments` | 某篇文章的公开评论（公开，只含可见的） |
 | POST | `/api/blog/posts/{slug}/comments` | 游客发评论（公开；蜜罐 + 每分钟 1 条 + 每天 10 条） |
