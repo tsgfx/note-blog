@@ -3,7 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { changePassword, logout } from '../api/auth'
 import { generateMetaBatch, reindexMissingNotes } from '../api/notes'
-import { getBackupStatus, getHealth, type BackupStatus, type HealthReport } from '../api/system'
+import {
+  getBackupStatus,
+  getHealth,
+  getIntegrityReport,
+  type BackupStatus,
+  type HealthReport,
+  type IntegrityReport,
+} from '../api/system'
 import { notify } from '../lib/feedback'
 
 const router = useRouter()
@@ -17,6 +24,9 @@ const backup = ref<BackupStatus | null>(null)
 const backupLoading = ref(true)
 const backupError = ref('')
 const health = ref<HealthReport | null>(null)
+const integrity = ref<IntegrityReport | null>(null)
+const integrityLoading = ref(true)
+const integrityError = ref('')
 
 /** 依赖的中文名与「坏了会怎样」，比裸的 db / embedding 有用 */
 const COMPONENTS: { key: string; label: string; impact: string }[] = [
@@ -25,15 +35,18 @@ const COMPONENTS: { key: string; label: string; impact: string }[] = [
 ]
 
 /**
- * 备份状态与依赖健康一起拉。
- *
- * <p>加载失败不弹 toast：设置页的主任务是改密码，这些只是附带信息，
- * 用一行静态文字说明即可，不该打断。
+ * 备份状态、健康与知识库体检一起拉。
  */
 async function loadStatus() {
   backupLoading.value = true
+  integrityLoading.value = true
   backupError.value = ''
-  const [backupResult, healthResult] = await Promise.allSettled([getBackupStatus(), getHealth()])
+  integrityError.value = ''
+  const [backupResult, healthResult, integrityResult] = await Promise.allSettled([
+    getBackupStatus(),
+    getHealth(),
+    getIntegrityReport(),
+  ])
 
   if (backupResult.status === 'fulfilled') {
     backup.value = backupResult.value
@@ -42,7 +55,16 @@ async function loadStatus() {
     backupError.value = backupResult.reason instanceof Error ? backupResult.reason.message : String(backupResult.reason)
   }
   health.value = healthResult.status === 'fulfilled' ? healthResult.value : null
+
+  if (integrityResult.status === 'fulfilled') {
+    integrity.value = integrityResult.value
+  } else {
+    integrity.value = null
+    integrityError.value =
+      integrityResult.reason instanceof Error ? integrityResult.reason.message : String(integrityResult.reason)
+  }
   backupLoading.value = false
+  integrityLoading.value = false
 }
 
 onMounted(loadStatus)
@@ -326,6 +348,52 @@ async function submit() {
       </template>
     </section>
 
+    <section class="backup" aria-labelledby="integrity-title">
+      <header class="backup-head">
+        <h2 id="integrity-title" class="backup-title">资产与内容体检</h2>
+        <button class="btn btn-text btn-sm" type="button" :disabled="integrityLoading" @click="loadStatus">
+          {{ integrityLoading ? '体检中' : '重新体检' }}
+        </button>
+      </header>
+
+      <p v-if="integrityError" class="error-text">{{ integrityError }}</p>
+      <p v-else-if="integrityLoading" class="muted">正在检查资产完整性与死链…</p>
+      <template v-else-if="integrity">
+        <p class="backup-line">
+          知识库概况：共 <strong>{{ integrity.totalNotes }}</strong> 篇（公开 <strong>{{ integrity.publishedNotes }}</strong> 篇 · 草稿 {{ integrity.draftNotes }} 篇）
+        </p>
+
+        <div v-if="integrity.brokenAssets.length > 0" class="notice notice-error integrity-box">
+          <p class="integrity-alert-title">
+            发现 <strong>{{ integrity.brokenAssets.length }}</strong> 处本地图片死链（已发布文章中引用的图片文件已丢失）：
+          </p>
+          <ul class="integrity-list">
+            <li v-for="item in integrity.brokenAssets" :key="item.noteId + item.assetPath" class="integrity-item">
+              <router-link :to="`/editor/${item.noteId}`" class="integrity-note-title" target="_blank">
+                {{ item.noteTitle }} ↗
+              </router-link>
+              <code class="integrity-path">{{ item.assetPath }}</code>
+            </li>
+          </ul>
+        </div>
+
+        <p v-if="integrity.missingChunksNotes > 0" class="notice notice-warn">
+          有 <strong>{{ integrity.missingChunksNotes }}</strong> 篇笔记缺失向量分片（语义问答与关联推荐无法索引）。可在下方维护区一键补建。
+        </p>
+
+        <p v-if="integrity.emptyNotes > 0" class="notice notice-warn">
+          发现 <strong>{{ integrity.emptyNotes }}</strong> 篇正文为空的空白笔记。
+        </p>
+
+        <p
+          v-if="integrity.brokenAssets.length === 0 && integrity.missingChunksNotes === 0 && integrity.emptyNotes === 0"
+          class="notice notice-ok"
+        >
+          全库资产完好：无本地图片死链，向量索引与正文结构健康。
+        </p>
+      </template>
+    </section>
+
     <section class="backup" aria-labelledby="maintenance-title">
       <header class="backup-head">
         <h2 id="maintenance-title" class="backup-title">维护</h2>
@@ -461,6 +529,46 @@ async function submit() {
 
 .maint-gap {
   margin-top: var(--space-5);
+}
+
+/* ───────── 资产体检 ───────── */
+.integrity-box {
+  margin-top: var(--space-3);
+}
+
+.integrity-alert-title {
+  margin-bottom: var(--space-2);
+  font-weight: 500;
+}
+
+.integrity-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.integrity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.integrity-note-title {
+  color: var(--pen);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.integrity-path {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 /* ───────── 运行状态 ───────── */

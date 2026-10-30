@@ -2,7 +2,9 @@ package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
 import com.notesblog.dto.BackupStatusDto;
+import com.notesblog.dto.IntegrityReportDto;
 import com.notesblog.service.BackupStatusService;
+import com.notesblog.service.IntegrityCheckService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemController {
 
     private final BackupStatusService backupStatusService;
+    private final IntegrityCheckService integrityCheckService;
 
     @GetMapping("/backup")
     public ApiResponse<BackupStatusDto> backup() {
         return ApiResponse.ok(backupStatusService.status());
+    }
+
+    @GetMapping("/integrity")
+    public ApiResponse<IntegrityReportDto> integrity() {
+        return ApiResponse.ok(integrityCheckService.check());
     }
 }

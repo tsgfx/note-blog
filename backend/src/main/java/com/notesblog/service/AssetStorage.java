@@ -43,6 +43,16 @@ public class AssetStorage {
         return target;
     }
 
+    /** 检查相对路径的图片文件是否存在 */
+    public boolean exists(String relativePath) {
+        try {
+            Path target = confine(relativePath);
+            return Files.isRegularFile(target);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static String contentType(Path file) {
         return MIME.getOrDefault(extension(file.getFileName().toString()), "application/octet-stream");
     }

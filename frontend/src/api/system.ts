@@ -31,3 +31,24 @@ export interface HealthReport {
 export function getHealth() {
   return get<HealthReport>('/health')
 }
+
+export interface BrokenAssetItem {
+  noteId: number
+  noteTitle: string
+  noteSlug?: string
+  assetPath: string
+}
+
+export interface IntegrityReport {
+  totalNotes: number
+  publishedNotes: number
+  draftNotes: number
+  missingChunksNotes: number
+  emptyNotes: number
+  brokenAssets: BrokenAssetItem[]
+}
+
+export function getIntegrityReport() {
+  return get<IntegrityReport>('/system/integrity')
+}
+
