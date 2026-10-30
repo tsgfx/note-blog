@@ -35,6 +35,14 @@ public class RelatedNoteService {
     /** 低于这个相似度的直接不要——宁可少推荐，也不要塞一堆「看起来相关」的噪音。 */
     static final double MIN_SCORE = 0.25;
 
+    /**
+     * 候选按目标条数的多少倍批量取。
+     *
+     * <p>公开页只收已发布文章，草稿会被过滤掉，所以不能只取 {@code wanted} 个；
+     * 取 4 倍在「库里绝大多数是草稿」的极端情况下也只多读几十行。
+     */
+    private static final int CANDIDATE_FACTOR = 4;
+
     private final VectorIndex index;
     private final NoteRepository noteRepository;
 
@@ -67,13 +75,26 @@ public class RelatedNoteService {
         List<Map.Entry<Long, Double>> ranked = new ArrayList<>(best.entrySet());
         ranked.sort(Map.Entry.<Long, Double>comparingByValue(Comparator.reverseOrder()));
 
+        // 一次批量取回候选，而不是逐个 findById：公开文章页每次都会调这个接口，
+        // 逐个查在最坏情况下是几十次往返。多取一些是为了抵消「草稿被过滤掉」的损耗。
+        int candidates = Math.min(ranked.size(), wanted * CANDIDATE_FACTOR);
+        List<Long> ids = new ArrayList<>(candidates);
+        for (int i = 0; i < candidates && ranked.get(i).getValue() >= MIN_SCORE; i++) {
+            ids.add(ranked.get(i).getKey());
+        }
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Note> loaded = new HashMap<>();
+        noteRepository.findAllById(ids).forEach(note -> loaded.put(note.getId(), note));
+
         List<RelatedNoteDto> result = new ArrayList<>(wanted);
         for (Map.Entry<Long, Double> entry : ranked) {
             if (entry.getValue() < MIN_SCORE || result.size() == wanted) {
                 break;
             }
-            Note note = noteRepository.findById(entry.getKey()).orElse(null);
             // 索引快照可能落后于删除：分片还在内存里、笔记已经没了，跳过即可
+            Note note = loaded.get(entry.getKey());
             if (note == null) {
                 continue;
             }

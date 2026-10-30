@@ -1,6 +1,7 @@
 package com.notesblog.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -8,7 +9,9 @@ import static org.mockito.Mockito.when;
 import com.notesblog.domain.Note;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,6 +58,21 @@ class RelatedNoteServiceTest {
         return note;
     }
 
+    /**
+     * 模拟批量取笔记：服务现在用 findAllById 一次取回候选，
+     * 缺 id（已删除）与真实仓库一样被略过。
+     */
+    private void stubBulkLoad(Note... notes) {
+        Map<Long, Note> byId = new HashMap<>();
+        for (Note n : notes) {
+            byId.put(n.getId(), n);
+        }
+        lenient().when(noteRepository.findAllById(anyList())).thenAnswer(invocation -> {
+            List<Long> ids = invocation.getArgument(0);
+            return ids.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
+        });
+    }
+
     @Test
     @DisplayName("按「笔记向量均值 × 对方最强分片」打分，排除自己与已删笔记")
     void ranksByStrongestChunkAndSkipsMissing() {
@@ -69,10 +87,8 @@ class RelatedNoteServiceTest {
                 // 已删除：索引快照还没失效，repo 里查不到
                 chunk(5, 4, new float[] {0.99f, 0.01f, 0f, 0f}));
         when(index.chunks()).thenReturn(chunks);
-        when(noteRepository.findById(2L)).thenReturn(Optional.of(note(2, "相关笔记")));
-        // 4 号（已删）返回空
-        lenient().when(noteRepository.findById(4L)).thenReturn(Optional.empty());
-        // 3 号（正交）分数为 0，不会走到 repository
+        // 4 号（已删）批量取时找不到；3 号（正交）分数为 0，根本不在候选里
+        stubBulkLoad(note(2, "相关笔记"));
 
         List<RelatedNoteDto> result = service.related(1, null);
 
@@ -109,12 +125,13 @@ class RelatedNoteServiceTest {
         // 12 篇都同方向，全部超过阈值
         var builder = new java.util.ArrayList<VectorIndex.Chunk>();
         builder.add(chunk(0, 1, new float[] {1f, 0f, 0f, 0f}));
+        var loaded = new java.util.ArrayList<Note>();
         for (long i = 2; i <= 13; i++) {
             builder.add(chunk(i, i, new float[] {1f, 0f, 0f, 0f}));
-            Note note = note(i, "笔记" + i);
-            lenient().when(noteRepository.findById(i)).thenReturn(Optional.of(note));
+            loaded.add(note(i, "笔记" + i));
         }
         when(index.chunks()).thenReturn(builder);
+        stubBulkLoad(loaded.toArray(new Note[0]));
 
         assertThat(service.related(1, null)).hasSize(5);
         assertThat(service.related(1, 99)).hasSize(RelatedNoteService.MAX_LIMIT);
