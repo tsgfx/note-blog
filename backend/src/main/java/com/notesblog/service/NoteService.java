@@ -184,6 +184,7 @@ public class NoteService {
     private Predicate keywordPredicate(Root<Note> root, CriteriaQuery<?> query, CriteriaBuilder cb, String keyword) {
         String like = "%" + escapeLike(keyword) + "%";
         Predicate titleMatch = cb.like(cb.lower(root.get("title")), like, '\\');
+        Predicate summaryMatch = cb.like(cb.lower(root.get("summary")), like, '\\');
         // 正文也参与匹配。LIKE '%kw%' 是全表扫描，但 680 篇 × 平均几 KB 的体量
         // 毫秒级就返回；等这个数字涨三个数量级再考虑 ngram 全文索引。
         Predicate contentMatch = cb.like(cb.lower(root.get("contentMd")), like, '\\');
@@ -196,7 +197,7 @@ public class NoteService {
         tagged.select(cb.literal(1L))
                 .where(cb.equal(subRoot.get("id"), root.get("id")),
                         cb.like(cb.lower(tagJoin.get("name")), like, '\\'));
-        return cb.or(titleMatch, contentMatch, cb.exists(tagged));
+        return cb.or(titleMatch, summaryMatch, contentMatch, cb.exists(tagged));
     }
 
     private static String escapeLike(String raw) {
