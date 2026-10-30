@@ -22,9 +22,31 @@ md.renderer.rules.image = (tokens, index, options, _env, self) => {
   return self.renderToken(tokens, index, options)
 }
 
+function parseFenceInfo(raw: string): { lang: string; filename?: string } {
+  const trimmed = raw.trim()
+  if (!trimmed) return { lang: '' }
+  // 形如 java:OrderService.java
+  const colonIndex = trimmed.indexOf(':')
+  if (colonIndex > 0) {
+    const lang = trimmed.slice(0, colonIndex).trim()
+    const filename = trimmed
+      .slice(colonIndex + 1)
+      .split(/\s+/)[0]
+      ?.trim()
+    return { lang, filename: filename || undefined }
+  }
+  // 形如 java title="OrderService.java" 或 java title=OrderService.java
+  const titleMatch = trimmed.match(/^(\S+)\s+(?:title=)(?:["']([^"']+)["']|(\S+))/i)
+  if (titleMatch) {
+    return { lang: titleMatch[1], filename: titleMatch[2] || titleMatch[3] }
+  }
+  const firstWord = trimmed.split(/\s+/)[0] ?? ''
+  return { lang: firstWord }
+}
+
 md.renderer.rules.fence = (tokens, index) => {
   const token = tokens[index]
-  const lang = token.info.trim().split(/\s+/)[0] ?? ''
+  const { lang, filename } = parseFenceInfo(token.info)
   const code = token.content.replace(/\n$/, '')
   const grammar = LANGUAGE_ALIAS[lang.toLowerCase()] ?? lang
   const known = grammar !== '' && hljs.getLanguage(grammar) !== undefined
@@ -32,11 +54,20 @@ md.renderer.rules.fence = (tokens, index) => {
     ? hljs.highlight(code, { language: grammar, ignoreIllegals: true }).value
     : md.utils.escapeHtml(code)
   const label = md.utils.escapeHtml(lang)
+
+  let titleHtml = `<span class="code-lang">${label}</span>`
+  if (filename) {
+    const safeFile = md.utils.escapeHtml(filename)
+    titleHtml = label
+      ? `<span class="code-title"><span class="code-lang">${label}</span><span class="code-sep">·</span><span class="code-file">${safeFile}</span></span>`
+      : `<span class="code-file">${safeFile}</span>`
+  }
+
   return [
     '<figure class="code-window">',
     '<div class="code-bar">',
     '<span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span>',
-    `<span class="code-lang">${label}</span>`,
+    titleHtml,
     '<button class="code-copy" type="button" aria-label="复制代码">复制</button>',
     '</div>',
     `<pre><code class="hljs language-${label}">${body}</code></pre>`,

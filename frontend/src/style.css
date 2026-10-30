@@ -534,11 +534,30 @@ p {
   background: #28c840;
 }
 
+.code-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
 .code-lang {
   font-size: 12px;
   color: var(--ink-3);
   letter-spacing: 0.02em;
   text-align: center;
+}
+
+.code-sep {
+  color: var(--ink-3);
+  opacity: 0.5;
+}
+
+.code-file {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
 }
 
 .code-copy {
