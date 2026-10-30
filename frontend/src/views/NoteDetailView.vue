@@ -43,6 +43,28 @@ const folder = computed(() => {
 })
 const date = computed(() => (note.value?.updatedAt ?? '').slice(0, 10))
 /**
+ * 专栏/系列连载名称：
+ * 1. 优先取以「专栏:」或「系列:」开头的标签；
+ * 2. 其次若 sourcePath 存在子目录，取所在上一级目录名作为专题名。
+ */
+const seriesName = computed(() => {
+  if (!note.value) return null
+  const seriesTag = note.value.tags?.find((t) => t.startsWith('专栏:') || t.startsWith('系列:'))
+  if (seriesTag) {
+    return seriesTag.replace(/^(专栏|系列):/, '').trim()
+  }
+  const source = note.value.sourcePath
+  if (!source) return null
+  const parts = source.split('/').filter(Boolean)
+  if (parts.length >= 2) {
+    const candidate = parts[parts.length - 2]
+    if (candidate && !['assets', 'images', 'img'].includes(candidate.toLowerCase())) {
+      return candidate
+    }
+  }
+  return null
+})
+/**
  * 公开文章该显示「发布」而不是「最后改动」：读者关心这篇是什么时候写的。
  * 改过之后另外标一句「更新于」，技术文章的内容新鲜度是读者判断可信度的依据。
  */
@@ -283,6 +305,12 @@ onBeforeUnmount(() => {
             <!-- 公开页用「文章」做入口：读者从博客列表进来，回退路径要和来时一致 -->
             <template v-if="isPublicRoute">
               <RouterLink to="/blog">文章</RouterLink>
+              <template v-if="seriesName">
+                <span> / </span>
+                <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="crumb-series">
+                  {{ seriesName }}
+                </RouterLink>
+              </template>
               <span> / </span>
               <span class="crumb-here">{{ note.title }}</span>
             </template>
@@ -364,6 +392,17 @@ onBeforeUnmount(() => {
             <button class="btn btn-text" type="button" @click="togglePublish">
               {{ note.status === 'PUBLISHED' ? '下线' : '发布' }}
             </button>
+          </div>
+
+          <div v-if="isPublicRoute && seriesName" class="series-callout">
+            <span class="series-badge">专栏连载</span>
+            <span class="series-hint">收录于专题</span>
+            <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="series-link">
+              《{{ seriesName }}》
+            </RouterLink>
+            <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="series-arrow">
+              查看专题全部文章 →
+            </RouterLink>
           </div>
         </header>
 
@@ -524,6 +563,16 @@ onBeforeUnmount(() => {
   margin-bottom: var(--space-3);
 }
 
+.crumb-series {
+  color: var(--pen);
+  text-decoration: none;
+  transition: color var(--dur-1);
+}
+
+.crumb-series:hover {
+  text-decoration: underline;
+}
+
 /* 落点是文章标题本身：面包屑最后一段截断，不把整行挤掉 */
 .crumb-here {
   display: inline-block;
@@ -533,6 +582,51 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   vertical-align: bottom;
   color: var(--ink-3);
+}
+
+.series-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: 8px 14px;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--pen);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  flex-wrap: wrap;
+}
+
+.series-badge {
+  padding: 1px 6px;
+  background: var(--pen);
+  color: var(--on-pen);
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.series-link {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.series-link:hover {
+  color: var(--pen);
+  text-decoration: underline;
+}
+
+.series-arrow {
+  color: var(--pen);
+  font-size: 11px;
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.series-arrow:hover {
+  text-decoration: underline;
 }
 
 .reader-title {
