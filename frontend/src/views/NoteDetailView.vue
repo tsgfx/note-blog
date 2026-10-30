@@ -42,6 +42,12 @@ const folder = computed(() => {
   return source.split('/').slice(0, -1).join(' / ')
 })
 const date = computed(() => (note.value?.updatedAt ?? '').slice(0, 10))
+/**
+ * 公开文章该显示「发布」而不是「最后改动」：读者关心这篇是什么时候写的。
+ * 改过之后另外标一句「更新于」，技术文章的内容新鲜度是读者判断可信度的依据。
+ */
+const publishedDate = computed(() => (note.value?.publishedAt ?? '').slice(0, 10))
+const updatedLater = computed(() => Boolean(publishedDate.value && date.value && date.value !== publishedDate.value))
 const republishing = ref(false)
 
 /** 中文按 400 字/分钟估算，仅用于让读者心里有个数 */
@@ -280,7 +286,14 @@ onBeforeUnmount(() => {
           </p>
           <h1 class="reader-title">{{ note.title }}</h1>
           <div class="reader-meta">
-            <span>{{ date }}</span>
+            <template v-if="isPublicRoute">
+              <span>{{ publishedDate || date }}</span>
+              <template v-if="updatedLater">
+                <span class="meta-sep" aria-hidden="true">·</span>
+                <span class="meta-updated">更新于 {{ date }}</span>
+              </template>
+            </template>
+            <span v-else>{{ date }}</span>
             <span class="meta-sep" aria-hidden="true">·</span>
             <span>{{ charCount }} 字 · 约 {{ readMinutes }} 分钟</span>
             <template v-if="note.viewCount != null">
@@ -533,6 +546,12 @@ onBeforeUnmount(() => {
 
 .meta-sep {
   color: var(--hairline);
+}
+
+/* 「更新于」比发布日期轻一档：它是补充信息，不该抢走"什么时候写的"这个主角 */
+.meta-updated {
+  color: var(--ink-3);
+  opacity: 0.85;
 }
 
 .meta-tags {
