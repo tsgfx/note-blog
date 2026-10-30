@@ -134,12 +134,16 @@ function jumpFromMobile(item: OutlineItem) {
 function locateFromQuery() {
   const target = String(route.query.heading ?? '').trim()
   if (!target || !article.value) return
-  const heading = [...article.value.querySelectorAll<HTMLElement>('h1, h2, h3, h4')].find(
-    (el) => el.textContent?.trim() === target,
+  const heads = [...article.value.querySelectorAll<HTMLElement>('h1, h2, h3, h4')]
+  const heading = heads.find(
+    (el) =>
+      el.textContent?.trim() === target ||
+      el.textContent?.trim().includes(target) ||
+      target.includes(el.textContent?.trim() || '---'),
   )
   if (!heading) return
   heading.classList.add('located')
-  heading.scrollIntoView({ block: 'start' })
+  heading.scrollIntoView({ behavior: 'smooth', block: 'start' })
   window.setTimeout(() => heading.classList.remove('located'), 2600)
 }
 
@@ -241,9 +245,13 @@ async function regenerateMeta() {
 }
 
 watch(
-  () => route.fullPath,
-  (next, prev) => {
-    if (next !== prev) load()
+  () => [route.params.slug, route.query.heading] as const,
+  ([nextSlug, nextHeading], [prevSlug]) => {
+    if (nextSlug !== prevSlug) {
+      load()
+    } else if (nextHeading) {
+      locateFromQuery()
+    }
   },
 )
 

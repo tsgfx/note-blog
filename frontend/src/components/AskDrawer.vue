@@ -280,6 +280,9 @@ onBeforeUnmount(() => {
                           :key="index"
                           class="source-item"
                           type="button"
+                          :title="
+                            source.heading ? `跳转至正文「${source.heading}」小节` : `打开文章《${source.title}》`
+                          "
                           @click="selectSource(source)"
                         >
                           <span class="source-index">{{ String(index + 1).padStart(2, '0') }}</span>
