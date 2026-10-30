@@ -95,6 +95,14 @@ public class AskController {
         int finalRemaining = remaining;
         CompletableFuture.runAsync(() -> {
             try {
+                if (sources.isEmpty()) {
+                    send(emitter, "delta", Map.of("text", admin
+                            ? "笔记库中未检索到与该问题相关的内容。"
+                            : "笔记库中未检索到与该问题相关的公开内容。"));
+                    send(emitter, "done", Map.of("remaining", admin ? -1 : finalRemaining));
+                    emitter.complete();
+                    return;
+                }
                 String context = sources.stream()
                         .map(s -> "[来源: " + s.title()
                                 + (s.heading() == null ? "" : " / " + s.heading()) + "]\n"
