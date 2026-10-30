@@ -13,6 +13,7 @@ const PAGE_SIZE = 20
 const posts = ref<NoteSummary[]>([])
 const hotTags = ref<TagCount[]>([])
 const loading = ref(true)
+const refreshing = ref(false)
 const error = ref('')
 const page = ref(0)
 const totalPages = ref(0)
@@ -132,7 +133,11 @@ function clearAllFilters() {
 }
 
 async function load(target = 0) {
-  loading.value = true
+  // 首屏才用骨架；换筛选/翻页时保留旧列表，只把透明度压下去。
+  // 否则每点一次标签整页高度塌成骨架，再撑回来，跳得人眼晕。
+  const firstPaint = posts.value.length === 0
+  if (firstPaint) loading.value = true
+  else refreshing.value = true
   error.value = ''
   try {
     const result = await listPublishedNotes({
@@ -150,6 +155,7 @@ async function load(target = 0) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -183,7 +189,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="page blog">
+  <section class="page blog" :class="{ 'is-refreshing': refreshing }">
     <header class="page-head">
       <div>
         <h1 class="page-title">文章</h1>
@@ -563,6 +569,15 @@ onMounted(() => {
   stroke: currentColor;
   stroke-width: 1.7;
   stroke-linecap: round;
+}
+
+/* 换筛选时的过渡：旧列表留在原位变淡，新结果到了再恢复。
+   不给 pointer-events: none —— 读者在加载期间仍可以点开已经看到的文章。 */
+.is-refreshing .year,
+.is-refreshing .pager,
+.is-refreshing .empty-state {
+  opacity: 0.5;
+  transition: opacity var(--dur-1) var(--ease-soft);
 }
 
 .year + .year {
