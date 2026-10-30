@@ -7,12 +7,14 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.notesblog.domain.Note;
+import com.notesblog.domain.Tag;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +58,12 @@ class RelatedNoteServiceTest {
         note.setSlug("slug-" + id);
         note.setSummary(title + "的摘要");
         return note;
+    }
+
+    private static Tag tag(String name) {
+        Tag t = new Tag();
+        t.setName(name);
+        return t;
     }
 
     /**
@@ -153,5 +161,70 @@ class RelatedNoteServiceTest {
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.requireExists(99))
                 .isInstanceOf(com.notesblog.common.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("多路打分：同专栏与标签重叠的文章得分获得提升并标注推荐原因")
+    void hybridScoringBoostsSameSeriesAndTagOverlap() {
+        Tag t1 = tag("Spring");
+        Tag t2 = tag("专栏:深入微服务");
+
+        Note current = note(1, "微服务架构导论");
+        current.setTags(Set.of(t1, t2));
+        current.setSourcePath("后端/架构/intro.md");
+        when(noteRepository.findById(1L)).thenReturn(Optional.of(current));
+
+        Note candidateA = note(2, "服务注册与发现");
+        candidateA.setTags(Set.of(t1, t2));
+        candidateA.setSourcePath("后端/架构/eureka.md");
+
+        Note candidateB = note(3, "另一篇普通文章");
+        candidateB.setTags(Set.of(tag("Python")));
+        candidateB.setSourcePath("大数据/python.md");
+
+        List<VectorIndex.Chunk> chunks = List.of(
+                chunk(1, 1, new float[] {1f, 0f, 0f, 0f}),
+                chunk(2, 2, new float[] {0.9f, 0.1f, 0f, 0f}),
+                chunk(3, 3, new float[] {0.95f, 0.05f, 0f, 0f}));
+        when(index.chunks()).thenReturn(chunks);
+        stubBulkLoad(candidateA, candidateB);
+
+        List<RelatedNoteDto> results = service.related(1, 5);
+        assertThat(results).isNotEmpty();
+        // candidateA 虽然向量分略低于 candidateB，但由于专栏和标签相同，综合多路分跃居第一
+        assertThat(results.get(0).id()).isEqualTo(2L);
+        assertThat(results.get(0).reason()).contains("深入微服务");
+    }
+
+    @Test
+    @DisplayName("类目打散重排：避免同一目录下的文章扎堆霸榜，保持推荐内容丰富度")
+    void diversityRerankingPreventsCategoryClustering() {
+        Note current = note(1, "当前文章");
+        when(noteRepository.findById(1L)).thenReturn(Optional.of(current));
+
+        // 3 篇来自同一类目 A，1 篇来自类目 B
+        Note n2 = note(2, "类目A-1");
+        n2.setSourcePath("backend/java/1.md");
+        Note n3 = note(3, "类目A-2");
+        n3.setSourcePath("backend/java/2.md");
+        Note n4 = note(4, "类目A-3");
+        n4.setSourcePath("backend/java/3.md");
+        Note n5 = note(5, "类目B-1");
+        n5.setSourcePath("frontend/vue/1.md");
+
+        List<VectorIndex.Chunk> chunks = List.of(
+                chunk(1, 1, new float[] {1f, 0f, 0f, 0f}),
+                chunk(2, 2, new float[] {0.99f, 0.01f, 0f, 0f}),
+                chunk(3, 3, new float[] {0.98f, 0.02f, 0f, 0f}),
+                chunk(4, 4, new float[] {0.97f, 0.03f, 0f, 0f}),
+                chunk(5, 5, new float[] {0.90f, 0.10f, 0f, 0f}));
+        when(index.chunks()).thenReturn(chunks);
+        stubBulkLoad(n2, n3, n4, n5);
+
+        // 请求 3 篇：单类目上限为 max(2, 3/2) = 2
+        // 类目 A 选 2 篇，第 3 篇必须轮到不同类目的 n5
+        List<RelatedNoteDto> results = service.related(1, 3);
+        assertThat(results).hasSize(3);
+        assertThat(results).extracting(RelatedNoteDto::id).containsExactly(2L, 3L, 5L);
     }
 }

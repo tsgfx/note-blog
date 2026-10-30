@@ -102,6 +102,7 @@ async function load() {
     note.value = isPublicRoute.value ? await getPublishedNote(slug) : await getNote(slug)
     if (isPublicRoute.value && note.value) {
       recordViewOnce(note.value.slug)
+      recordReadingHistory(note.value.slug)
       // 公开文章用文章自己的标题与摘要：标签页、浏览器历史、分享预览才认得出来
       applyArticleSeo(note.value.title, note.value.summary || plainText(note.value.contentMd))
     }
@@ -118,6 +119,18 @@ async function load() {
     syncActive()
   }
   loadRelated()
+}
+
+function recordReadingHistory(slug: string) {
+  if (!slug) return
+  try {
+    const raw = localStorage.getItem('notesblog_read_history')
+    const list: string[] = raw ? JSON.parse(raw) : []
+    const updated = [slug, ...list.filter((s) => s !== slug)].slice(0, 10)
+    localStorage.setItem('notesblog_read_history', JSON.stringify(updated))
+  } catch {
+    // 隐私模式下静默
+  }
 }
 
 /**
@@ -456,7 +469,10 @@ onBeforeUnmount(() => {
               class="related-card"
               :to="isPublicRoute ? `/blog/${item.slug}` : `/notes/${item.slug}`"
             >
-              <span class="related-name">{{ item.title }}</span>
+              <div class="related-card-head">
+                <span class="related-name">{{ item.title }}</span>
+                <span v-if="item.reason" class="related-badge">{{ item.reason }}</span>
+              </div>
               <span v-if="item.summary" class="related-summary">{{ item.summary }}</span>
             </RouterLink>
           </div>
@@ -926,6 +942,24 @@ onBeforeUnmount(() => {
   border-color: var(--pen);
   transform: translateY(-2px);
   box-shadow: var(--lift-2);
+}
+
+.related-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.related-badge {
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--pen);
+  background: var(--pen-soft, rgba(46, 117, 182, 0.08));
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 .related-name {

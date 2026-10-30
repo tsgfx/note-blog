@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { listPublishedNotes, listPublishedTags, type NoteSummary, type TagCount } from '../api/notes'
+import {
+  listPublishedNotes,
+  listPublishedTags,
+  listRecommendations,
+  type NoteSummary,
+  type TagCount,
+} from '../api/notes'
 import { isLoggedIn } from '../api/auth'
 import LoadingRows from '../components/LoadingRows.vue'
 
@@ -19,20 +25,42 @@ const page = ref(0)
 const totalPages = ref(0)
 const totalElements = ref(0)
 const signedIn = isLoggedIn()
+const historyCount = ref(0)
 
 const currentTag = computed(() => ((route.query.tag as string) || '').trim())
 const currentKeyword = computed(() => ((route.query.keyword as string) || '').trim())
-const currentSort = computed<'recent' | 'views'>(() => (route.query.sort === 'views' ? 'views' : 'recent'))
+const currentSort = computed<'recent' | 'views' | 'recommended'>(() => {
+  if (route.query.sort === 'views') return 'views'
+  if (route.query.sort === 'recommended') return 'recommended'
+  return 'recent'
+})
 const searchInput = ref(currentKeyword.value)
 
 const hasFilter = computed(() => Boolean(currentTag.value || currentKeyword.value))
 const hasPrev = computed(() => page.value > 0)
 const hasNext = computed(() => page.value + 1 < totalPages.value)
 
-/** 年份分组：最新排序按年份清晰汇集；热门排序按榜单直观展现 */
+function syncHistoryCount() {
+  try {
+    const raw = localStorage.getItem('notesblog_read_history')
+    if (raw) {
+      const list = JSON.parse(raw)
+      historyCount.value = Array.isArray(list) ? list.length : 0
+    } else {
+      historyCount.value = 0
+    }
+  } catch {
+    historyCount.value = 0
+  }
+}
+
+/** 分组：最新排序按年份汇集；热门与推荐独立展现完整信息流 */
 const groups = computed(() => {
   if (currentSort.value === 'views') {
     return [{ year: '热门排行', items: posts.value }]
+  }
+  if (currentSort.value === 'recommended') {
+    return [{ year: '为你推荐', items: posts.value }]
   }
   const map = new Map<string, NoteSummary[]>()
   posts.value.forEach((post) => {
@@ -44,12 +72,12 @@ const groups = computed(() => {
   return [...map.entries()].map(([year, items]) => ({ year, items }))
 })
 
-function switchSort(sort: 'recent' | 'views') {
+function switchSort(sort: 'recent' | 'views' | 'recommended') {
   if (currentSort.value === sort) return
   router.push({
     query: {
       ...route.query,
-      sort: sort === 'views' ? 'views' : undefined,
+      sort: sort === 'recent' ? undefined : sort,
       page: undefined,
     },
   })
@@ -140,17 +168,33 @@ async function load(target = 0) {
   else refreshing.value = true
   error.value = ''
   try {
-    const result = await listPublishedNotes({
-      page: target,
-      size: PAGE_SIZE,
-      tag: currentTag.value || undefined,
-      keyword: currentKeyword.value || undefined,
-      sort: currentSort.value,
-    })
-    posts.value = result.content
-    page.value = result.number
-    totalPages.value = result.totalPages
-    totalElements.value = result.totalElements
+    if (currentSort.value === 'recommended') {
+      syncHistoryCount()
+      let historyList: string[] = []
+      try {
+        const raw = localStorage.getItem('notesblog_read_history')
+        if (raw) historyList = JSON.parse(raw)
+      } catch {
+        // 隐私模式下静默
+      }
+      const result = await listRecommendations(historyList, PAGE_SIZE)
+      posts.value = result
+      page.value = 0
+      totalPages.value = 1
+      totalElements.value = result.length
+    } else {
+      const result = await listPublishedNotes({
+        page: target,
+        size: PAGE_SIZE,
+        tag: currentTag.value || undefined,
+        keyword: currentKeyword.value || undefined,
+        sort: currentSort.value,
+      })
+      posts.value = result.content
+      page.value = result.number
+      totalPages.value = result.totalPages
+      totalElements.value = result.totalElements
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -220,6 +264,16 @@ onMounted(() => {
           >
             热门
           </button>
+          <button
+            type="button"
+            role="tab"
+            class="sort-tab"
+            :class="{ 'is-active': currentSort === 'recommended' }"
+            :aria-selected="currentSort === 'recommended'"
+            @click="switchSort('recommended')"
+          >
+            <span class="recommend-sparkle" aria-hidden="true">✦</span> 推荐
+          </button>
         </div>
 
         <form class="search-box" @submit.prevent="applySearch">
@@ -277,6 +331,17 @@ onMounted(() => {
       <button type="button" class="btn btn-ghost btn-xs" @click="clearAllFilters">清除筛选</button>
     </div>
 
+    <div v-if="currentSort === 'recommended'" class="recommend-banner rise">
+      <span class="recommend-banner-sparkle" aria-hidden="true">✦</span>
+      <span class="recommend-banner-text">
+        {{
+          historyCount > 0
+            ? `基于你最近阅读的 ${historyCount} 篇足迹智能推选 · 多类目打散重排`
+            : '当前基于全库热门与精选文章推荐；阅读几篇后，系统将自动生成专属于你的个性化推荐流'
+        }}
+      </span>
+    </div>
+
     <LoadingRows v-if="loading" :rows="6" variant="post" />
     <p v-else-if="error" class="error-text">{{ error }}</p>
 
@@ -297,6 +362,9 @@ onMounted(() => {
               </span>
             </div>
             <div class="post-body">
+              <div v-if="post.recommendReason" class="post-recommend-tag">
+                <span class="rec-sparkle" aria-hidden="true">✦</span> {{ post.recommendReason }}
+              </div>
               <RouterLink class="post-title" :to="`/blog/${post.slug}`">
                 <span class="post-title-text">{{ post.title }}</span>
               </RouterLink>
@@ -391,6 +459,53 @@ onMounted(() => {
   color: var(--pen);
   font-weight: 500;
   box-shadow: var(--lift-1);
+}
+
+.recommend-sparkle {
+  color: var(--pen);
+  font-size: 11px;
+}
+
+/* ───────── 推荐说明条 ───────── */
+.recommend-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: 8px 14px;
+  background: var(--pen-soft, rgba(46, 117, 182, 0.08));
+  border: 1px solid var(--pen-soft, rgba(46, 117, 182, 0.2));
+  border-radius: var(--radius-sm, 6px);
+  color: var(--pen-ink, var(--pen));
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.recommend-banner-sparkle {
+  font-size: 12px;
+  color: var(--pen);
+}
+
+.recommend-banner-text {
+  font-weight: 500;
+}
+
+.post-recommend-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--pen);
+  background: var(--pen-soft, rgba(46, 117, 182, 0.08));
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.rec-sparkle {
+  font-size: 10px;
 }
 
 .search-box {

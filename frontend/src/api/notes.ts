@@ -23,6 +23,8 @@ export interface NoteSummary {
   viewCount?: number
   /** 关键词命中正文时的上下文片段（标题/摘要/标签已命中时为空） */
   matchSnippet?: string | null
+  /** 推荐原因（例如："基于你常看的 #并发 标签"、"热门精选"），为空则为常规列表 */
+  recommendReason?: string | null
 }
 
 export interface AdjacentPost {
@@ -60,6 +62,8 @@ export interface RelatedNote {
   sourcePath?: string
   /** 相似度 0~1，只用于排序展示，不影响功能 */
   score: number
+  /** 推荐原因（例如："同专栏 · 深入微服务"、"共同标签 #Spring"、"语义高相关"） */
+  reason?: string
 }
 
 export function getRelatedNotes(id: number, limit = 5) {
@@ -69,6 +73,12 @@ export function getRelatedNotes(id: number, limit = 5) {
 /** 公开文章的相关推荐（仅推荐已发布文章）。 */
 export function getPublishedRelatedNotes(slug: string, limit = 4) {
   return get<RelatedNote[]>(`/blog/posts/${slug}/related`, { limit })
+}
+
+/** 博客首页推荐流：结合读者足迹的个性化兴趣推荐与冷启动精选。 */
+export function listRecommendations(history?: string[], limit = 12) {
+  const query = history && history.length ? `?history=${history.join(',')}&limit=${limit}` : `?limit=${limit}`
+  return get<NoteSummary[]>(`/blog/recommendations${query}`)
 }
 
 /** 公开博客的热门标签（只统计已发布文章，按篇数降序）。 */

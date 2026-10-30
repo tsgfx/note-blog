@@ -53,6 +53,8 @@ class SecurityConfigTest {
     @MockitoBean
     private com.notesblog.service.RelatedNoteService relatedNoteService;
     @MockitoBean
+    private com.notesblog.service.RecommendationService recommendationService;
+    @MockitoBean
     private com.notesblog.service.PublishPreflightService publishPreflightService;
     @MockitoBean
     private AuthService authService;

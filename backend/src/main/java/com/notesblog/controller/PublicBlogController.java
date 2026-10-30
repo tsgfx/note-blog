@@ -11,6 +11,7 @@ import com.notesblog.dto.NoteTagCountDto;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
 import com.notesblog.service.NoteService;
+import com.notesblog.service.RecommendationService;
 import com.notesblog.service.RelatedNoteService;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,20 @@ public class PublicBlogController {
     private final NoteRepository noteRepository;
     private final NoteService noteService;
     private final RelatedNoteService relatedNoteService;
+    private final RecommendationService recommendationService;
+
+    /**
+     * 博客推荐流：支持冷启动精选与基于读者足迹的个性化兴趣推荐。
+     *
+     * @param history 逗号分隔或多值的历史浏览文章 slug 清单（来自前端 localStorage）
+     * @param limit 返回上限，默认 10 篇
+     */
+    @GetMapping("/recommendations")
+    public ApiResponse<List<NoteSummaryDto>> recommendations(
+            @RequestParam(required = false) List<String> history,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ApiResponse.ok(recommendationService.recommend(history, limit));
+    }
 
     /**
      * 公开文章列表，支持按标签或关键词即时过滤、最新/热门排序，分页返回。

@@ -3,27 +3,28 @@ package com.notesblog.service;
 import com.notesblog.common.NotFoundException;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
+import com.notesblog.domain.Tag;
 import com.notesblog.dto.RelatedNoteDto;
 import com.notesblog.repository.NoteRepository;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 相关笔记推荐：复用已建好的分片向量，**不调 embedding 接口**。
+ * 相关笔记推荐：多路特征加权（向量语义 + 标签重合 + 专栏系列）与类目打散重排。
  *
- * <p>思路：一篇笔记的向量 = 它各分片向量的均值（再归一化）；两篇笔记的相似度 =
- * 当前笔记向量与对方「最相似分片」的余弦。用 max 而不是均值，是因为一篇长笔记
- * 只有其中一段真正相关，把无关分片平均进来只会稀释分数。
- *
- * <p> Whole 流程都在内存索引（{@link VectorIndex}）上做，4715 个分片 × 1024 维
- * 一次点积遍历几十毫秒，请求开销可以忽略；笔记还没建索引（刚保存、异步重建中）
- * 时返回空列表，前端直接不渲染这一块。
+ * <p>1. 向量相似度：笔记向量均值与候选最强分片的余弦；
+ * 2. 标签重合度：Jaccard 相似度；
+ * 3. 专栏与类目：同专栏加权提升；
+ * 4. 打散（Diversity Re-ranking）：避免同一目录下的文章扎堆霸榜，保持推荐内容丰富度。
  */
 @Service
 @RequiredArgsConstructor
@@ -37,9 +38,6 @@ public class RelatedNoteService {
 
     /**
      * 候选按目标条数的多少倍批量取。
-     *
-     * <p>公开页只收已发布文章，草稿会被过滤掉，所以不能只取 {@code wanted} 个；
-     * 取 4 倍在「库里绝大多数是草稿」的极端情况下也只多读几十行。
      */
     private static final int CANDIDATE_FACTOR = 4;
 
@@ -63,37 +61,44 @@ public class RelatedNoteService {
             return List.of();
         }
 
-        // 每篇笔记只保留最强的分片相似度
-        Map<Long, Double> best = new HashMap<>();
+        // 1. 向量初筛：每篇笔记保留最强分片相似度
+        Map<Long, Double> bestVector = new HashMap<>();
         for (VectorIndex.Chunk chunk : chunks) {
             if (chunk.noteId() == noteId) {
                 continue;
             }
-            best.merge(chunk.noteId(), VectorIndex.dot(query, chunk.vector()), Math::max);
+            bestVector.merge(chunk.noteId(), VectorIndex.dot(query, chunk.vector()), Math::max);
         }
 
-        List<Map.Entry<Long, Double>> ranked = new ArrayList<>(best.entrySet());
+        List<Map.Entry<Long, Double>> ranked = new ArrayList<>(bestVector.entrySet());
         ranked.sort(Map.Entry.<Long, Double>comparingByValue(Comparator.reverseOrder()));
 
-        // 一次批量取回候选，而不是逐个 findById：公开文章页每次都会调这个接口，
-        // 逐个查在最坏情况下是几十次往返。多取一些是为了抵消「草稿被过滤掉」的损耗。
-        int candidates = Math.min(ranked.size(), wanted * CANDIDATE_FACTOR);
-        List<Long> ids = new ArrayList<>(candidates);
-        for (int i = 0; i < candidates && ranked.get(i).getValue() >= MIN_SCORE; i++) {
+        // 2. 批量拉取候选详情（多拉一些以满足状态过滤与多路重排）
+        int candidatesCount = Math.min(ranked.size(), wanted * CANDIDATE_FACTOR);
+        List<Long> ids = new ArrayList<>(candidatesCount);
+        for (int i = 0; i < candidatesCount && ranked.get(i).getValue() >= MIN_SCORE; i++) {
             ids.add(ranked.get(i).getKey());
         }
         if (ids.isEmpty()) {
             return List.of();
         }
+
         Map<Long, Note> loaded = new HashMap<>();
         noteRepository.findAllById(ids).forEach(note -> loaded.put(note.getId(), note));
 
-        List<RelatedNoteDto> result = new ArrayList<>(wanted);
+        Note currentNote = noteRepository.findById(noteId).orElse(null);
+        Set<String> currentTags = extractTags(currentNote);
+        String currentSeries = extractSeries(currentNote);
+        String currentCategory = currentNote != null ? extractCategory(currentNote.getSourcePath()) : "";
+
+        // 3. 多路特征综合打分
+        record Candidate(Note note, double score, String category, String reason) {}
+        List<Candidate> candidateList = new ArrayList<>();
+
         for (Map.Entry<Long, Double> entry : ranked) {
-            if (entry.getValue() < MIN_SCORE || result.size() == wanted) {
+            if (entry.getValue() < MIN_SCORE) {
                 break;
             }
-            // 索引快照可能落后于删除：分片还在内存里、笔记已经没了，跳过即可
             Note note = loaded.get(entry.getKey());
             if (note == null) {
                 continue;
@@ -101,11 +106,125 @@ public class RelatedNoteService {
             if (onlyPublished && note.getStatus() != NoteStatus.PUBLISHED) {
                 continue;
             }
+
+            double vectorSim = entry.getValue();
+            Set<String> candidateTags = extractTags(note);
+            String candidateSeries = extractSeries(note);
+            String candidateCategory = extractCategory(note.getSourcePath());
+
+            double tagJaccard = 0.0;
+            String sharedTag = null;
+            if (!currentTags.isEmpty() && !candidateTags.isEmpty()) {
+                Set<String> intersection = new HashSet<>(currentTags);
+                intersection.retainAll(candidateTags);
+                Set<String> union = new HashSet<>(currentTags);
+                union.addAll(candidateTags);
+                tagJaccard = (double) intersection.size() / union.size();
+                if (!intersection.isEmpty()) {
+                    sharedTag = intersection.iterator().next();
+                }
+            }
+
+            boolean sameSeries = currentSeries != null && currentSeries.equalsIgnoreCase(candidateSeries);
+            boolean sameCategory = !currentCategory.isEmpty() && currentCategory.equalsIgnoreCase(candidateCategory);
+            double seriesScore = sameSeries ? 1.0 : (sameCategory ? 0.4 : 0.0);
+
+            // 多路加权打分：向量 60% + 标签 25% + 专栏系列 15%
+            double finalScore = currentNote != null
+                    ? (0.60 * vectorSim + 0.25 * tagJaccard + 0.15 * seriesScore)
+                    : vectorSim;
+
+            // 推荐原因
+            String reason;
+            if (sameSeries) {
+                reason = "同专栏 · " + currentSeries;
+            } else if (sharedTag != null) {
+                reason = "共同标签 #" + sharedTag;
+            } else {
+                reason = "语义高相关 · " + (int) Math.round(finalScore * 100) + "%";
+            }
+
+            candidateList.add(new Candidate(note, finalScore, candidateCategory, reason));
+        }
+
+        // 按多路综合分降序排序
+        candidateList.sort(Comparator.comparingDouble(Candidate::score).reversed());
+
+        // 4. 类目打散重排（Diversity Re-ranking）：避免同目录扎堆
+        List<Candidate> selected = new ArrayList<>();
+        List<Candidate> deferred = new ArrayList<>();
+        Map<String, Integer> categoryCounts = new HashMap<>();
+        int maxPerCategory = Math.max(2, wanted / 2);
+
+        for (Candidate cand : candidateList) {
+            if (selected.size() == wanted) {
+                break;
+            }
+            String cat = cand.category();
+            int count = categoryCounts.getOrDefault(cat, 0);
+            if (!cat.isEmpty() && count >= maxPerCategory) {
+                deferred.add(cand);
+            } else {
+                selected.add(cand);
+                if (!cat.isEmpty()) {
+                    categoryCounts.put(cat, count + 1);
+                }
+            }
+        }
+
+        // 若打散后未填满 wanted，用候补队列补齐
+        for (Candidate cand : deferred) {
+            if (selected.size() == wanted) {
+                break;
+            }
+            selected.add(cand);
+        }
+
+        List<RelatedNoteDto> result = new ArrayList<>(selected.size());
+        for (Candidate cand : selected) {
+            Note note = cand.note();
+            double roundedScore = Math.round(cand.score() * 1000) / 1000.0;
             result.add(new RelatedNoteDto(
                     note.getId(), note.getTitle(), note.getSlug(), note.getSummary(),
-                    note.getSourcePath(), Math.round(entry.getValue() * 1000) / 1000.0));
+                    note.getSourcePath(), roundedScore, cand.reason()));
         }
         return result;
+    }
+
+    private static Set<String> extractTags(Note note) {
+        if (note == null || note.getTags() == null) {
+            return Collections.emptySet();
+        }
+        Set<String> set = new HashSet<>();
+        for (Tag tag : note.getTags()) {
+            set.add(tag.getName().toLowerCase());
+        }
+        return set;
+    }
+
+    static String extractSeries(Note note) {
+        if (note == null || note.getTags() == null) {
+            return null;
+        }
+        for (Tag tag : note.getTags()) {
+            String name = tag.getName();
+            if (name.startsWith("专栏:") || name.startsWith("系列:")) {
+                return name.substring(3).trim();
+            }
+        }
+        return null;
+    }
+
+    static String extractCategory(String sourcePath) {
+        if (sourcePath == null || sourcePath.isBlank()) {
+            return "";
+        }
+        String clean = sourcePath.replace('\\', '/').trim();
+        int lastSlash = clean.lastIndexOf('/');
+        if (lastSlash <= 0) {
+            return "";
+        }
+        return clean.substring(0, lastSlash);
     }
 
     /** 当前笔记的分片向量均值（归一化后）。没有分片（未建索引/刚改完内容）返回 null。 */

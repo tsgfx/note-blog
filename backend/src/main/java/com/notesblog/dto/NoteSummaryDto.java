@@ -26,7 +26,55 @@ public record NoteSummaryDto(
          * 摘要把关键词藏起来了，读者看到一条对不上的结果。把命中的那一句带出来，
          * 「为什么它在结果里」就不用再点进去找。
          */
-        String matchSnippet) {
+        String matchSnippet,
+        /** 推荐原因（例如："基于你常看的 #并发 标签"、"热门精选"），为空则为常规列表 */
+        String recommendReason) {
+
+    public NoteSummaryDto(
+            Long id,
+            String title,
+            String slug,
+            String summary,
+            String status,
+            String sourcePath,
+            LocalDateTime publishedAt,
+            boolean hasUnpublishedEdits,
+            LocalDateTime updatedAt,
+            List<String> tags,
+            long viewCount,
+            String matchSnippet) {
+        this(
+                id,
+                title,
+                slug,
+                summary,
+                status,
+                sourcePath,
+                publishedAt,
+                hasUnpublishedEdits,
+                updatedAt,
+                tags,
+                viewCount,
+                matchSnippet,
+                null);
+    }
+
+    public NoteSummaryDto withRecommendReason(String reason) {
+        return new NoteSummaryDto(
+                id,
+                title,
+                slug,
+                summary,
+                status,
+                sourcePath,
+                publishedAt,
+                hasUnpublishedEdits,
+                updatedAt,
+                tags,
+                viewCount,
+                matchSnippet,
+                reason);
+    }
 
     public static NoteSummaryDto from(Note n) {
         return from(n, null);
