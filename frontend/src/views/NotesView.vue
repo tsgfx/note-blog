@@ -427,13 +427,35 @@ function onKeydown(event: KeyboardEvent) {
 const preflight = ref<PreflightReport | null>(null)
 const preflightOpen = ref(false)
 const preflightRunning = ref(false)
+/** 发布前检查中作者主动勾掉不发布的篇目 id */
+const excludedPfIds = ref<Set<number>>(new Set())
 
 const preflightItems = computed(() => preflight.value?.items.filter((item) => item.findings.length) ?? [])
-/** 有阻断项的笔记会被排除，这个数就是「点了发布真会发出去几篇」 */
+/** 有阻断项或被作者排除的笔记不会发布，这个数就是「点了发布真会发出去几篇」 */
 const publishableCount = computed(() => {
   if (!preflight.value) return 0
-  return preflight.value.items.filter((item) => !item.findings.some((f) => f.level === 'BLOCK')).length
+  return preflight.value.items.filter(
+    (item) => !item.findings.some((f) => f.level === 'BLOCK') && !excludedPfIds.value.has(item.id),
+  ).length
 })
+
+function togglePfExclude(id: number) {
+  const next = new Set(excludedPfIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  excludedPfIds.value = next
+}
+
+/** 一键排除所有带警告的篇目（如含疑似密钥/手机号），保留纯净笔记安心发布 */
+function excludeAllWarnings() {
+  if (!preflight.value) return
+  const warnIds = preflight.value.items
+    .filter((item) => item.findings.some((f) => f.level === 'WARN'))
+    .map((item) => item.id)
+  const next = new Set(excludedPfIds.value)
+  warnIds.forEach((id) => next.add(id))
+  excludedPfIds.value = next
+}
 
 async function batch(action: 'publish' | 'unpublish') {
   const ids = [...selected.value]
@@ -451,6 +473,7 @@ async function batch(action: 'publish' | 'unpublish') {
       preflightRunning.value = false
     }
     if (preflight.value.blockers > 0 || preflight.value.warnings > 0) {
+      excludedPfIds.value = new Set()
       preflightOpen.value = true
       return
     }
@@ -516,14 +539,14 @@ async function fillSelectedMeta() {
   }
 }
 
-/** 预检弹窗里点「发布」：只发没有阻断项的那部分 */
+/** 预检弹窗里点「发布」：只发没有阻断项且未被排除的那部分 */
 function confirmPreflight() {
   const ids = (preflight.value?.items ?? [])
-    .filter((item) => !item.findings.some((f) => f.level === 'BLOCK'))
+    .filter((item) => !item.findings.some((f) => f.level === 'BLOCK') && !excludedPfIds.value.has(item.id))
     .map((item) => item.id)
   preflightOpen.value = false
   if (!ids.length) {
-    notify('选中的笔记都有阻断项，没有可发布的', 'error')
+    notify('选中的笔记都被排除或阻断，没有可发布的', 'error')
     return
   }
   runBatch('publish', ids)
@@ -829,11 +852,22 @@ onBeforeUnmount(() => {
       <div v-if="preflightOpen && preflight" class="pf-scrim" @click.self="preflightOpen = false">
         <div class="pf-sheet" role="dialog" aria-modal="true" aria-labelledby="pf-title">
           <header class="pf-head">
-            <h2 id="pf-title" class="pf-title">发布前检查</h2>
+            <div class="pf-head-row">
+              <h2 id="pf-title" class="pf-title">发布前检查</h2>
+              <button
+                v-if="preflight.warnings > 0"
+                class="btn btn-ghost btn-xs pf-quick-clean"
+                type="button"
+                @click="excludeAllWarnings"
+              >
+                排除所有告警篇目
+              </button>
+            </div>
             <p class="pf-sum">
               选中 {{ preflight.items.length }} 篇 ·
               <span :class="{ 'pf-bad': preflight.blockers }">阻断 {{ preflight.blockers }}</span> ·
               <span :class="{ 'pf-warn-text': preflight.warnings }">提醒 {{ preflight.warnings }}</span>
+              <span v-if="excludedPfIds.size" class="pf-excluded"> · 已排除 {{ excludedPfIds.size }} 篇</span>
             </p>
           </header>
 
@@ -842,9 +876,30 @@ onBeforeUnmount(() => {
               v-for="item in preflightItems"
               :key="item.id"
               class="pf-item"
-              :class="{ 'is-block': item.findings.some((f) => f.level === 'BLOCK') }"
+              :class="{
+                'is-block': item.findings.some((f) => f.level === 'BLOCK'),
+                'is-excluded': excludedPfIds.has(item.id),
+              }"
             >
-              <p class="pf-name">{{ item.title }}</p>
+              <div class="pf-item-header">
+                <label class="pf-item-label">
+                  <input
+                    type="checkbox"
+                    :disabled="item.findings.some((f) => f.level === 'BLOCK')"
+                    :checked="!item.findings.some((f) => f.level === 'BLOCK') && !excludedPfIds.has(item.id)"
+                    @change="togglePfExclude(item.id)"
+                  />
+                  <span class="pf-name">{{ item.title }}</span>
+                </label>
+                <RouterLink
+                  class="pf-edit-link"
+                  :to="`/editor/${item.id}`"
+                  target="_blank"
+                  title="在新标签页中打开编辑并脱敏"
+                >
+                  去编辑 ↗
+                </RouterLink>
+              </div>
               <ul class="pf-findings">
                 <li
                   v-for="finding in item.findings"
@@ -857,7 +912,9 @@ onBeforeUnmount(() => {
             </li>
           </ul>
 
-          <p class="pf-hint">有阻断项的笔记会被自动排除；提醒项不影响发布，发出去之前请确认一遍内容。</p>
+          <p class="pf-hint">
+            有阻断项的笔记会被自动排除；提醒项可手动取消勾选暂缓发布，点击「去编辑」可在新标签页脱敏。
+          </p>
 
           <div class="pf-actions">
             <button class="btn btn-text" type="button" @click="preflightOpen = false">取消</button>
@@ -1642,6 +1699,27 @@ onBeforeUnmount(() => {
   margin-bottom: var(--space-3);
 }
 
+.pf-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pf-quick-clean {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  color: var(--pen);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--paper);
+}
+
+.pf-quick-clean:hover {
+  background: var(--paper-deep);
+}
+
 .pf-title {
   font-family: var(--font-serif);
   font-size: var(--text-h3);
@@ -1651,6 +1729,10 @@ onBeforeUnmount(() => {
   margin-top: 6px;
   font-size: var(--text-sm);
   color: var(--ink-3);
+}
+
+.pf-excluded {
+  color: var(--pen);
 }
 
 .pf-bad {
@@ -1676,15 +1758,54 @@ onBeforeUnmount(() => {
   border-left: 2px solid var(--highlight);
   border-radius: 0 var(--radius) var(--radius) 0;
   background: var(--paper-deep);
+  transition: opacity var(--dur-1);
 }
 
 .pf-item.is-block {
   border-left-color: var(--danger);
 }
 
+.pf-item.is-excluded {
+  opacity: 0.55;
+  background: var(--paper);
+}
+
+.pf-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pf-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  flex: 1;
+}
+
+.pf-item-label input {
+  accent-color: var(--pen);
+  cursor: pointer;
+}
+
 .pf-name {
   font-size: var(--text-sm);
   color: var(--ink);
+}
+
+.pf-edit-link {
+  font-size: var(--text-xs);
+  color: var(--pen);
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pf-edit-link:hover {
+  background: var(--paper-deep);
+  text-decoration: underline;
 }
 
 .pf-findings {
