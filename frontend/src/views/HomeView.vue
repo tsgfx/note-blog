@@ -437,6 +437,11 @@ function scrollToTop() {
         <p class="foot-dim">内容随时会改，别太当真。</p>
         <button class="to-top" type="button" @click="scrollToTop">回到顶部 ↑</button>
       </div>
+      <p class="foot-legal">
+        <a class="icp" :href="profile.icp.href" target="_blank" rel="noopener noreferrer">{{
+          profile.icp.number
+        }}</a>
+      </p>
     </footer>
   </div>
 </template>
@@ -1458,6 +1463,24 @@ function scrollToTop() {
 
 .to-top:hover {
   color: var(--pen);
+}
+
+/* 备案号：法规要求可见，但它是页脚里最该退到背景的一行，
+   所以再压一层透明度，只在悬停时提亮成主色 */
+.foot-legal {
+  margin-top: var(--space-2);
+  opacity: 0.6;
+}
+
+.icp {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease-soft);
+}
+
+.icp:hover {
+  color: var(--pen);
+  text-decoration: none;
 }
 
 /* ───────── 滚动进入才显示 ───────── */

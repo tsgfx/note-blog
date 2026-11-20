@@ -71,6 +71,14 @@ export interface Profile {
   tools: string[]
   /** 页脚一句话 */
   footer: string
+  /**
+   * ICP 备案信息。工信部要求网站在底部展示备案号并链接到备案查询系统，
+   * 备案号换了只改这里，HomeView 里没有硬编码。
+   */
+  icp: {
+    number: string
+    href: string
+  }
 }
 
 export const profile: Profile = {
@@ -213,4 +221,8 @@ export const profile: Profile = {
     'Git',
   ],
   footer: '自己写的笔记系统：Spring Boot + Vue 3，检索走 bge-m3 向量 + 关键词融合。',
+  icp: {
+    number: '晋ICP备2026019323号-1',
+    href: 'https://beian.miit.gov.cn/',
+  },
 }
