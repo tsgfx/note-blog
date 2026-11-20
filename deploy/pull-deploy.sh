@@ -126,9 +126,21 @@ info "重建：${SERVICES}（首次构建可能要几分钟）"
 docker compose -f "$COMPOSE" up -d --build $SERVICES
 
 info "等待服务就绪"
+# 域名上线后 Caddy 会把 80 上的请求 308 跳到 https，直接 curl http://127.0.0.1/api/health
+# 拿到的是一个空 body 的跳转响应，永远等不到 "status":"up"（2026-11-20 踩过：部署明明
+# 成功却报「等了两分钟还没 up」）。所以按 .env 里的 DOMAIN 选协议：
+#   DOMAIN 形如 :80（纯端口、IP 直连站）→ 走 http
+#   DOMAIN 是真实域名 → 走 https，并用 --resolve 把域名钉回回环，不依赖公网 DNS
+# 不用 curl -L 是因为跳转目标写的是域名，服务器上解析不到它，跟着跳只会失败。
+SITE_HOST=$(sed -n 's/^DOMAIN=//p' .env | tr -d '"' | head -1)
 I=0
 while [ "$I" -lt 40 ]; do
-  HEALTH=$(curl -s --noproxy '*' --max-time 5 http://127.0.0.1/api/health || true)
+  if [ -n "$SITE_HOST" ] && [ "${SITE_HOST#:}" = "$SITE_HOST" ]; then
+    HEALTH=$(curl -s --noproxy '*' --max-time 5 \
+      --resolve "${SITE_HOST}:443:127.0.0.1" "https://${SITE_HOST}/api/health" || true)
+  else
+    HEALTH=$(curl -s --noproxy '*' --max-time 5 http://127.0.0.1/api/health || true)
+  fi
   if printf '%s' "$HEALTH" | grep -q '"status":"up"'; then
     ok "后端 up"
     printf '%s\n' "$HEALTH" | sed 's/^/  /'
@@ -137,7 +149,8 @@ while [ "$I" -lt 40 ]; do
   I=$((I + 1))
   sleep 3
 done
-[ "$I" -lt 40 ] || die "等了两分钟还没 up，看 docker compose -f ${COMPOSE} logs backend"
+[ "$I" -lt 40 ] || die "等了两分钟还没 up，看 docker compose -f ${COMPOSE} logs backend
+  自查：curl -s --resolve ${SITE_HOST:-tsgfx.top}:443:127.0.0.1 https://${SITE_HOST:-tsgfx.top}/api/health"
 
 printf '\n'
 ok "部署完成：$(git rev-parse --short HEAD)"
