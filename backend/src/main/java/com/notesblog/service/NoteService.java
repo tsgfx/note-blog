@@ -296,6 +296,9 @@ public class NoteService {
         // 发布即把当前内容推上线，标记随之清空
         note.setHasUnpublishedEdits(false);
         Note saved = noteRepository.save(note);
+        // 分片缓存里固化了 published 标志（VectorIndex.Chunk），不发这次失效，
+        // 刚发布的文章对公开检索和游客问答就永远不可见，直到进程重启。
+        vectorIndex.invalidate();
         auditService.record("NOTE_PUBLISH", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
     }
@@ -309,6 +312,9 @@ public class NoteService {
         // 下线后不再有「线上内容」可比，标记留着只会让人困惑
         note.setHasUnpublishedEdits(false);
         Note saved = noteRepository.save(note);
+        // 下线同样要失效：缓存里那批分片还带着 published=true，不清掉等于
+        // 草稿内容继续出现在公开检索结果里——比起搜不到，这条更严重。
+        vectorIndex.invalidate();
         auditService.record("NOTE_UNPUBLISH", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
     }
@@ -404,6 +410,8 @@ public class NoteService {
 
         if (!changed.isEmpty()) {
             noteRepository.saveAll(changed);
+            // 同上：published 标志固化在分片缓存里，批量发布/下线后必须重建快照
+            vectorIndex.invalidate();
         }
         if (!changed.isEmpty() || !skipped.isEmpty()) {
             // 只记一条汇总：200 篇写 200 条会把审计表刷屏，翻页全变成发布记录

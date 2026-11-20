@@ -162,4 +162,37 @@ class NoteBatchTest {
         verify(noteRepository, never()).saveAll(anyList());
         verify(noteRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("批量发布后重建分片缓存：否则新文章对公开检索永远不可见")
+    void publishBatchInvalidatesVectorIndex() {
+        Note draft = note(9L, "九", "正文", NoteStatus.DRAFT);
+        when(noteRepository.findAllById(anyList())).thenReturn(List.of(draft));
+
+        service.publishBatch(List.of(9L));
+
+        verify(vectorIndex).invalidate();
+    }
+
+    @Test
+    @DisplayName("批量下线后重建分片缓存：否则草稿内容仍会出现在公开检索里")
+    void unpublishBatchInvalidatesVectorIndex() {
+        Note published = note(10L, "十", "正文", NoteStatus.PUBLISHED);
+        when(noteRepository.findAllById(anyList())).thenReturn(List.of(published));
+
+        service.unpublishBatch(List.of(10L));
+
+        verify(vectorIndex).invalidate();
+    }
+
+    @Test
+    @DisplayName("没有任何变化时不重建缓存（白让下一次检索重新加载整库向量）")
+    void noChangeKeepsVectorIndex() {
+        Note alreadyPublished = note(11L, "十一", "正文", NoteStatus.PUBLISHED);
+        when(noteRepository.findAllById(anyList())).thenReturn(List.of(alreadyPublished));
+
+        service.publishBatch(List.of(11L));
+
+        verify(vectorIndex, never()).invalidate();
+    }
 }
