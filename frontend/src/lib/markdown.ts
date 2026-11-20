@@ -1,9 +1,26 @@
 import MarkdownIt from 'markdown-it'
+import katexPlugin from '@traptitech/markdown-it-katex'
 import hljs from 'highlight.js/lib/common'
 
 const md = new MarkdownIt({
   html: false,
   linkify: true,
+})
+
+/**
+ * 数学公式。笔记里大量出现 `$x_i$` 行内式和 `$$...$$` 独立式，
+ * 不加这一步它们会原样显示成美元符号加反斜杠（KL 散度、MOE 那几篇尤其密）。
+ *
+ * <p>`throwOnError: false`：公式写错时 KaTeX 会把源码染红输出来，
+ * 只坏那一条公式；设成 true 会抛异常，整个页面白屏——一篇长文里有个手滑的
+ * 反斜杠不值得让读者看不到正文。
+ *
+ * <p>插件自带的 `katex` 版本必须和 `import 'katex/dist/katex.min.css'`
+ * 的版本一致，否则类名对不上、公式排版会乱（0.16.x 与 0.19.x 混装踩过）。
+ */
+md.use(katexPlugin, {
+  throwOnError: false,
+  strict: false,
 })
 
 // 代码块渲染成 macOS 窗口样式：标题栏（三个圆点、语言名、复制按钮）+ 代码区。
@@ -105,7 +122,7 @@ export function buildOutline(root: HTMLElement): OutlineItem[] {
   const items: OutlineItem[] = []
   const used = new Map<string, number>()
   root.querySelectorAll<HTMLElement>('h1, h2, h3, h4').forEach((el, index) => {
-    const text = el.textContent?.trim() || ''
+    const text = headingText(el)
     const base = text.replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff-]/g, '') || `section-${index}`
     const count = used.get(base) ?? 0
     used.set(base, count + 1)
@@ -114,4 +131,21 @@ export function buildOutline(root: HTMLElement): OutlineItem[] {
     items.push({ id, level: Number(el.tagName.slice(1)), text })
   })
   return items
+}
+
+/**
+ * 取标题的纯文字。
+ *
+ * <p>标题里可能含公式（`### 3.1 前向 KL 散度 $D_{KL}(P||Q)$`）。KaTeX 为了兼顾
+ * 读屏会把同一条公式输出三份：可见的 HTML、MathML、以及 MathML 里的 annotation，
+ * 直接读 `textContent` 会在大纲里得到「DKL(P||Q)D_KL(P||Q)DKL(P||Q)」。
+ * 这里先把 MathML 部分摘掉再取文字。
+ */
+function headingText(el: HTMLElement): string {
+  if (!el.querySelector('.katex')) {
+    return el.textContent?.trim() || ''
+  }
+  const clone = el.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('.katex-mathml').forEach((node) => node.remove())
+  return clone.textContent?.replace(/\s+/g, ' ').trim() || ''
 }

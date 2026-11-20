@@ -25,6 +25,22 @@ export default defineConfig({
      * 免得每次构建都刷一条无意义的告警。
      */
     chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        /**
+         * KaTeX 单独成包（约 270 kB）。
+         *
+         * <p>它被 lib/markdown.ts 引用，而问答抽屉 AskDrawer 在 App.vue 里是静态
+         * import，于是整条渲染链都落到首屏 chunk 里——加公式渲染后主包从 330 kB
+         * 涨到 595 kB。拆出来之后主包回落到原来的量级，KaTeX 走并行请求，
+         * 且它版本极少变动，能被浏览器长期缓存。
+         */
+        manualChunks(id: string) {
+          if (id.includes('node_modules/katex')) return 'katex'
+          return undefined
+        },
+      },
+    },
   },
   server: {
     // 不写 host 时只会绑 IPv6 回环 [::1]，出现「localhost 能开、127.0.0.1 连不上」的怪现象。

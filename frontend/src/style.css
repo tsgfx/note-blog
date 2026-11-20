@@ -433,6 +433,29 @@ p {
   text-underline-offset: 3px;
 }
 
+/* ───────── 数学公式（KaTeX）─────────
+   长公式在窄屏会把整页顶出横向滚动条，改成公式自己滚。
+   行内公式跟着正文字号走，不要 KaTeX 默认的 1.21em——中文正文里会明显偏大。 */
+.prose .katex {
+  font-size: 1.05em;
+}
+
+.prose .katex-display {
+  margin: 1.4em 0;
+  padding: 2px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.prose .katex-display > .katex {
+  font-size: 1.15em;
+}
+
+/* 公式写错时 KaTeX 会输出红色原文，别让它在深色主题下糊成一团 */
+.prose .katex-error {
+  color: #dc2626;
+}
+
 .prose blockquote {
   padding: 0.2em 0 0.2em 1em;
   border-left: 2px solid var(--pen);
