@@ -23,6 +23,7 @@ public class NoteIndexService {
     private static final Pattern HEADING = Pattern.compile("(?m)^#{1,6}\\s+(.+?)\\s*$");
     private static final int MAX_CHUNK_CHARS = 1800;
     private static final int MAX_STORE_ATTEMPTS = 3;
+    private static final int MAX_HEADING_CHARS = 255;
 
     private final NoteRepository noteRepository;
     private final EmbeddingClient embeddingClient;
@@ -94,9 +95,26 @@ public class NoteIndexService {
     private void addSplit(List<ChunkText> result, String heading, String text) {
         String clean = text.trim();
         if (clean.isBlank()) return;
+        String safeHeading = trimHeading(heading);
         for (int start = 0; start < clean.length(); start += MAX_CHUNK_CHARS) {
-            result.add(new ChunkText(heading, clean.substring(start, Math.min(start + MAX_CHUNK_CHARS, clean.length()))));
+            result.add(new ChunkText(safeHeading, clean.substring(start, Math.min(start + MAX_CHUNK_CHARS, clean.length()))));
         }
+    }
+
+    /**
+     * note_chunks.heading 是 VARCHAR(255)。有小节标题被写成了整段（一行 `#` 后面跟几百字），
+     * 整篇索引会因此 Data too long 插不进去——补建时表现为同一篇反复失败。
+     * 这里按字符截到 254 再补一个省略号，正好 255；不能截在代理对中间，否则 emoji 会变成坏字符。
+     */
+    static String trimHeading(String heading) {
+        if (heading == null || heading.length() <= MAX_HEADING_CHARS) {
+            return heading;
+        }
+        int end = MAX_HEADING_CHARS - 1;
+        if (Character.isHighSurrogate(heading.charAt(end - 1))) {
+            end--;
+        }
+        return heading.substring(0, end) + "…";
     }
 
     private record ChunkText(String heading, String content) {
