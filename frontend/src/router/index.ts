@@ -97,6 +97,30 @@ const router = createRouter({
   ],
 })
 
+/**
+ * 发版后的旧 chunk 失效。
+ *
+ * <p>打包产物是带 hash 的文件，nginx 给 {@code /assets/} 一年长缓存；而部署会整体替换镜像，
+ * 旧 hash 文件随之消失。停在旧页面上的标签页点下一个懒加载路由时，动态 import 拿到 404，
+ * 导航直接失败、页面停在原地（看起来像"点了没反应"，控制台里只有一行红字）。
+ *
+ * <p>处理方式：刷新一次拿新的 {@code index.html}，然后回到目标地址。
+ * 用 sessionStorage 记时间戳，一分钟内只刷一次——真断网时每个路由都失败，
+ * 不节流就会变成无限刷新。
+ */
+const CHUNK_RELOAD_KEY = 'notes_blog_chunk_reload_at'
+
+router.onError((error, to) => {
+  const message = String((error as Error | undefined)?.message ?? error)
+  const chunkFailure = /dynamically imported module|Importing a module script failed|Unable to preload CSS/i
+  if (!chunkFailure.test(message)) return
+
+  const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0)
+  if (Date.now() - last < 60_000) return
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+  window.location.assign(to.fullPath)
+})
+
 router.beforeEach((to) => {
   const loggedIn = Boolean(localStorage.getItem('notes_blog_token'))
   if (!to.meta.public && !loggedIn) {
@@ -109,6 +133,8 @@ router.beforeEach((to) => {
 
 router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} · 一隅` : '一隅'
+  // 导航成功说明 chunk 是最新的，把"已自动刷新过"的标记清掉，下次发版还能再救一次
+  sessionStorage.removeItem(CHUNK_RELOAD_KEY)
 })
 
 export default router
