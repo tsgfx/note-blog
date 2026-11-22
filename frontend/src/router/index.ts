@@ -132,7 +132,7 @@ router.beforeEach((to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · 一隅` : '一隅'
+  document.title = to.meta.title ? `${to.meta.title} · 一隅笔记` : '一隅笔记'
   // 导航成功说明 chunk 是最新的，把"已自动刷新过"的标记清掉，下次发版还能再救一次
   sessionStorage.removeItem(CHUNK_RELOAD_KEY)
 })
