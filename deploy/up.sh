@@ -35,7 +35,7 @@ docker info >/dev/null 2>&1 || die "docker 没在运行（systemctl start docker
 # 而机器上还跑着别的服务、别的用户——顺手收紧，不要指望自己记得。
 ENV_MODE=$(stat -c %a .env 2>/dev/null || echo "")
 if [ -n "$ENV_MODE" ] && [ "$ENV_MODE" != "600" ]; then
-  chmod 600 .env && warn ".env 权限是 $ENV_MODE，已改成 600（里面有全部密钥）"
+  chmod 600 .env && warn ".env 权限是 ${ENV_MODE}，已改成 600（里面有全部密钥）"
 fi
 
 # shellcheck disable=SC1091
