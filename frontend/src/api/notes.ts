@@ -332,6 +332,8 @@ export interface InboxConfig {
   endpointUrl: string
   curlExample: string
   instruction: string
+  /** 服务端是否配置了 INBOX_TOKEN；false 时外部剪藏入口是关闭的 */
+  configured?: boolean
 }
 
 export function getPublishedBacklinks(slug: string) {

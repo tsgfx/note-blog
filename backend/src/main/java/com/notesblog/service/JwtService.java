@@ -40,9 +40,13 @@ public class JwtService {
             Claims claims = Jwts.parser().verifyWith(key()).build()
                     .parseSignedClaims(token).getPayload();
             Object role = claims.get("role");
+            // 没有 role 的令牌一律拒绝。以前这里默认 "ADMIN"——那意味着任何能伪造/继承
+            // 一个缺 role claim 的令牌都直接拿到管理员权限，默认值必须是拒绝而不是最高权限。
+            if (role == null || role.toString().isBlank()) {
+                return Optional.empty();
+            }
             Object version = claims.get("tv");
-            return Optional.of(new Principal(claims.getSubject(),
-                    role == null ? "ADMIN" : role.toString(),
+            return Optional.of(new Principal(claims.getSubject(), role.toString(),
                     // 升级前签发的令牌没有 tv，按 0 处理，正好等于 ALTER 的列默认值
                     version instanceof Number number ? number.longValue() : 0L));
         } catch (Exception e) {

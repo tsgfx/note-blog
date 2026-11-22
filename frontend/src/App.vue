@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { isLoggedIn, logout } from './api/auth'
 import Toaster from './components/Toaster.vue'
 import ConfirmHost from './components/ConfirmHost.vue'
-import AskDrawer from './components/AskDrawer.vue'
+// 问答抽屉按需加载：它静态引用 lib/markdown.ts，而那一条链会带上 KaTeX（约 270 kB）
+// 和 highlight.js 的全量语法。放在入口 chunk 里等于每张首页都要为「可能不打开的抽屉」付费。
+// 只有真正第一次打开抽屉时才下载，文本渲染链同时也被笔记详情页按路由懒加载复用。
+const AskDrawer = defineAsyncComponent(() => import('./components/AskDrawer.vue'))
 import QuickCaptureModal from './components/QuickCaptureModal.vue'
 import { isOpen, toggleDrawer } from './lib/askState'
 import { openQuickCapture } from './lib/quickCaptureState'
@@ -12,6 +15,12 @@ import { theme, toggleTheme } from './lib/theme'
 
 const route = useRoute()
 const router = useRouter()
+
+/** 抽屉第一次被打开前不挂载，避免异步组件在首屏就被请求 */
+const drawerEverOpened = ref(isOpen.value)
+watch(isOpen, (open) => {
+  if (open) drawerEverOpened.value = true
+})
 
 // 依赖当前路由重新计算，登录/退出后切换即时生效
 const signedIn = computed(() => {
@@ -171,7 +180,7 @@ function signOut() {
 
     <Toaster />
     <ConfirmHost />
-    <AskDrawer />
+    <AskDrawer v-if="drawerEverOpened" />
     <QuickCaptureModal />
 
     <!-- 移动端轻量悬浮快速记闪念按钮（只在登录态显示） -->

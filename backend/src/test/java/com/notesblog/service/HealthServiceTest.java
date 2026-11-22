@@ -6,10 +6,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.notesblog.dto.HealthReport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,8 +29,14 @@ class HealthServiceTest {
     @Mock
     private EmbeddingProbe embeddingProbe;
 
-    @InjectMocks
+    /** 探针执行器：测试里同步执行，超时路径由 completeOnTimeout 负责。 */
     private HealthService healthService;
+
+    @BeforeEach
+    void setUp() {
+        // 必须在 Mockito 注入 @Mock 之后构造，否则 Runnable::run 里拿到的是 null
+        healthService = new HealthService(jdbcTemplate, embeddingProbe, Runnable::run);
+    }
 
     @Test
     @DisplayName("依赖全通 → up")

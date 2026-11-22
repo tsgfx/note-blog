@@ -14,7 +14,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * 接口限流的注册。
  *
- * <p>目前只管三个接口：问答要花 LLM token，搜索要做向量检索，
+ * <p>目前只管五个接口：问答要花 LLM token，检索要做向量检索，
+ * 公开检索与反向链接都是匿名可调的高成本读写，
  * 阅读量上报是公开写接口、不设上限会被脚本刷榜。
  * 其它接口是本地 CRUD，限流只会给自己添麻烦。
  *
@@ -32,6 +33,20 @@ public class RateLimitConfig implements WebMvcConfigurer {
 
     /** 阅读量上报：slug 占一段，用单层通配。 */
     static final String VIEW_PATH = "/api/blog/posts/*/view";
+
+    /**
+     * 公开检索。匿名可用，且每次都做一次 embedding 调用——
+     * 和 /api/search 一样贵，不能不设上限（一个 curl 循环就能把 embedding 额度烧光）。
+     */
+    static final String PUBLIC_SEARCH_PATH = "/api/blog/search";
+
+    /**
+     * 公开反向链接。slug 占一段，用单层通配。
+     *
+     * <p>这条查询对整库正文做 LIKE '%slug%' 全表扫（索引帮不上忙），
+     * 是站上最贵的匿名读接口之一；不设上限的话一串并发就能把数据库 CPU 打满。
+     */
+    static final String PUBLIC_BACKLINKS_PATH = "/api/blog/posts/*/backlinks";
 
     private final ObjectProvider<RateLimiter> rateLimiterProvider;
 
@@ -63,6 +78,16 @@ public class RateLimitConfig implements WebMvcConfigurer {
     @Value("${app.rate-limit.view-per-minute:30}")
     private int viewPerMinute;
 
+    /**
+     * 公开检索的每分钟上限。默认值与 search 对齐：对真人都够用，挡的是脚本。
+     */
+    @Value("${app.rate-limit.public-search-per-minute:60}")
+    private int publicSearchPerMinute;
+
+    /** 反向链接的每分钟上限。读者一次详情页最多两次（进入 + 展开），30 足够。 */
+    @Value("${app.rate-limit.backlinks-per-minute:30}")
+    private int backlinksPerMinute;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         RateLimiter rateLimiter = rateLimiterProvider.getIfAvailable();
@@ -74,9 +99,11 @@ public class RateLimitConfig implements WebMvcConfigurer {
         Map<String, RateLimitInterceptor.Rule> rules = Map.of(
                 "/api/ask", new RateLimitInterceptor.Rule(askPerMinute, Duration.ofMinutes(1)),
                 "/api/search", new RateLimitInterceptor.Rule(searchPerMinute, Duration.ofMinutes(1)),
+                PUBLIC_SEARCH_PATH, new RateLimitInterceptor.Rule(publicSearchPerMinute, Duration.ofMinutes(1)),
+                PUBLIC_BACKLINKS_PATH, new RateLimitInterceptor.Rule(backlinksPerMinute, Duration.ofMinutes(1)),
                 VIEW_PATH, new RateLimitInterceptor.Rule(viewPerMinute, Duration.ofMinutes(1)));
 
         registry.addInterceptor(new RateLimitInterceptor(rateLimiter, rules))
-                .addPathPatterns("/api/ask", "/api/search", VIEW_PATH);
+                .addPathPatterns("/api/ask", "/api/search", PUBLIC_SEARCH_PATH, PUBLIC_BACKLINKS_PATH, VIEW_PATH);
     }
 }

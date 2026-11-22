@@ -12,10 +12,10 @@ import com.notesblog.repository.TagRepository;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 写完笔记后自动生成摘要与标签。
@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class NoteMetaService {
 
     /** 只把正文开头这么多字符交给模型：摘要和标签不需要全文，也省额度。 */
@@ -45,37 +44,83 @@ public class NoteMetaService {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
 
-    @Transactional
+    private final TransactionTemplate readTx;
+    private final TransactionTemplate writeTx;
+
+    public NoteMetaService(NoteRepository noteRepository,
+                           TagRepository tagRepository,
+                           LlmStreamingClient llmClient,
+                           ObjectMapper objectMapper,
+                           AuditService auditService,
+                           PlatformTransactionManager transactionManager) {
+        this.noteRepository = noteRepository;
+        this.tagRepository = tagRepository;
+        this.llmClient = llmClient;
+        this.objectMapper = objectMapper;
+        this.auditService = auditService;
+        this.readTx = new TransactionTemplate(transactionManager);
+        this.readTx.setReadOnly(true);
+        // 模型侧一次可能要几十秒；绝不能让这段时间占着数据库连接和行锁——
+        // 池子只有 10 条，几篇同时点「重新生成」就能把整个站点的读写饿死。
+        // 所以拆成「读快照 → 事务外调模型 → 短事务写回」三段。
+        this.writeTx = new TransactionTemplate(transactionManager);
+    }
+
     public NoteDetailDto generate(Long id, boolean force) {
-        Note note = noteRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("笔记不存在：" + id));
-        boolean needSummary = force || isBlank(note.getSummary());
-        boolean needTags = force || note.getTags().isEmpty();
-        if (!needSummary && !needTags) {
+        // 1. 只读事务：判断缺什么，并把要喂给模型的正文取出来
+        MetaInput input = readTx.execute(status -> {
+            Note note = noteRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("笔记不存在：" + id));
+            boolean needSummary = force || isBlank(note.getSummary());
+            boolean needTags = force || note.getTags().isEmpty();
+            return new MetaInput(note.getId(), note.getTitle(), note.getContentMd(),
+                    needSummary, needTags);
+        });
+        if (input == null) {
+            throw new NotFoundException("笔记不存在：" + id);
+        }
+        if (!input.needSummary() && !input.needTags()) {
             // 都有内容且不强制：不花额度，直接原样返回
-            return NoteDetailDto.from(note);
+            return readTx.execute(status -> NoteDetailDto.from(
+                    noteRepository.findById(id)
+                            .orElseThrow(() -> new NotFoundException("笔记不存在：" + id))));
         }
 
-        String raw = collectLlm(note.getTitle(), note.getContentMd());
+        // 2. 事务外调模型（可能几十秒）
+        String raw = collectLlm(input.title(), input.contentMd());
         NoteMeta meta = parseMeta(raw);
 
-        boolean changed = false;
-        if (needSummary && meta.summary() != null && !meta.summary().isBlank()) {
-            note.setSummary(meta.summary());
-            changed = true;
+        // 3. 短事务写回：重新读一次，用户这期间改过正文也不会被我们的旧实体覆盖
+        NoteDetailDto result = writeTx.execute(status -> {
+            Note note = noteRepository.findById(input.id())
+                    .orElseThrow(() -> new NotFoundException("笔记不存在：" + input.id()));
+            boolean changed = false;
+            if (input.needSummary() && meta.summary() != null && !meta.summary().isBlank()) {
+                note.setSummary(meta.summary());
+                changed = true;
+            }
+            if (input.needTags() && !meta.tags().isEmpty()) {
+                note.setTags(resolveTags(meta.tags()));
+                changed = true;
+            }
+            // 已发布的文章补摘要/标签同样会立刻改变线上展示（博客列表就显示摘要），
+            // 与「改了正文」是同一件事，所以一并打上「待重发」标记。
+            if (changed && note.getStatus() == NoteStatus.PUBLISHED) {
+                note.setHasUnpublishedEdits(true);
+            }
+            Note saved = noteRepository.save(note);
+            auditService.record(force ? "NOTE_META_REGEN" : "NOTE_META_AUTO", saved.getSlug(), saved.getTitle());
+            return NoteDetailDto.from(saved);
+        });
+        if (result == null) {
+            throw new IllegalStateException("摘要写入未返回结果");
         }
-        if (needTags && !meta.tags().isEmpty()) {
-            note.setTags(resolveTags(meta.tags()));
-            changed = true;
-        }
-        // 已发布的文章补摘要/标签同样会立刻改变线上展示（博客列表就显示摘要），
-        // 与「改了正文」是同一件事，所以一并打上「待重发」标记。
-        if (changed && note.getStatus() == NoteStatus.PUBLISHED) {
-            note.setHasUnpublishedEdits(true);
-        }
-        Note saved = noteRepository.save(note);
-        auditService.record(force ? "NOTE_META_REGEN" : "NOTE_META_AUTO", saved.getSlug(), saved.getTitle());
-        return NoteDetailDto.from(saved);
+        return result;
+    }
+
+    /** 生成摘要/标签时要用到的输入：只带纯字段，不把实体带出事务。 */
+    private record MetaInput(Long id, String title, String contentMd,
+                             boolean needSummary, boolean needTags) {
     }
 
     private String collectLlm(String title, String contentMd) {

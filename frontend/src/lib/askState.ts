@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
 import type { SearchResult } from '../api/notes'
-import { renderMarkdown } from './markdown'
 import { notify } from './feedback'
 import { canAsk, consumeLocally, remaining, syncFromServer } from './guestQuota'
 
@@ -39,7 +38,9 @@ let currentMsg: AskMessage | null = null
    markdown 重渲染随之合帧。历史消息内容不变，直接用 renderMarkdown(text)。 */
 let renderFrame = 0
 let streamBuf = ''
-const renderSrc = ref('')
+/** 当前流式消息已合帧的 Markdown 源码（渲染成 HTML 由 AskDrawer 负责：
+ *  这样本模块不依赖 lib/markdown.ts，入口 chunk 才不会连带下载 KaTeX 与 highlight.js） */
+export const renderSrc = ref('')
 
 function scheduleRender() {
   if (renderFrame) return
@@ -64,9 +65,6 @@ function finishMessage() {
   currentMsg = null
   stage.value = 'idle'
 }
-
-/** 正在生成的消息内容（rAF 合帧后的 markdown HTML） */
-export const html = computed(() => renderMarkdown(renderSrc.value))
 
 interface StreamEvent {
   type: string

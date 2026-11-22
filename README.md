@@ -61,7 +61,9 @@ mysql -u root -p < db/schema.sql
 
 ```bash
 cd backend
-mvn spring-boot:run
+# 必须带 dev profile：主配置里 JWT_SECRET / ADMIN_PASSWORD 的默认值是空的，
+# 缺了它们启动会直接报错（这是个特性，见 StartupSecretsCheck）
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
 # 验证：curl http://localhost:8080/api/health
 ```
 
@@ -96,7 +98,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.notesblog.vite-dev.p
 ## 开发命令
 
 ```bash
-# 后端测试：189 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
+# 后端测试：252 个用例，纯切片 + 单元测试，不需要 MySQL / Ollama / LLM
 cd backend && mvn test
 
 # 前端检查
@@ -257,7 +259,10 @@ cp .env.example .env
 
 > 注意：`run.sh` 会执行 `set -a; . ./.env`，**`.env` 里的值会覆盖你 export 的同名变量**。
 > 所以用 `./run.sh` 启动时，改配置只能改 `.env`，命令行 `export` 不生效。
-> 直接用 `mvn spring-boot:run` 启动时，环境变量才会生效。
+> 直接用 `mvn spring-boot:run` 启动时，环境变量才会生效——但那样缺 `JWT_SECRET` /
+> `ADMIN_PASSWORD` 会**启动失败**（`StartupSecretsCheck` 故意不给默认值：曾经默认是
+> `change-me-now` 和仓库里公开的一段字符串，忘了设就等于把后台交给所有读过仓库的人）。
+> 本地开发加 `-Dspring-boot.run.profiles=dev` 用 `application-dev.yml` 里的开发值。
 
 **登录密码怎么改**：`ADMIN_PASSWORD` 只在首次建库时用来创建管理员。库里已有该账号后，
 改 `.env` 不会覆盖密码——请登录后点右上角「设置」→「账号设置」修改。
@@ -267,8 +272,14 @@ cp .env.example .env
 **这个密码只在建库时生效**，库里已有账号后改 `.env` 不会覆盖密码——
 请登录后点右上角「设置」修改。改密会把令牌版本号 +1，所有已登录设备立即失效。
 
-`/api/blog/**`、`/api/health`、`/api/auth/login`、`/api/ask`（游客限次，见下）、读取图片公开，
-其余后台、搜索、问答接口需要 JWT。
+`/api/blog/**`、`/api/health`、`/api/auth/login`、`/api/ask`（游客限次，见下）、
+`GET /api/assets/**`（读图）与 `/api/inbox/quick-capture`（要剪藏 Token）公开，
+其余后台接口**不只要求登录，还要求 `ROLE_ADMIN`**——登录状态本身不构成授权。
+
+**外部剪藏**（iOS 快捷指令 / Raycast）默认关闭：`.env` 里 `INBOX_TOKEN` 留空时该接口
+一律 401「剪藏未启用」，只有登录后在设置页里手写。要开启就在服务器 `.env` 写一个
+32 位随机串再重启 backend；Token 只从 `X-Inbox-Token` 或 `Authorization: Bearer` 读，
+**不接受 URL 查询参数**（会留在代理日志和浏览器历史里）。
 
 > **游客的两个能力**：问答（每天有限次）与评论（默认可见，管理员可隐藏/删除）。
 > 游客的检索范围**只有已发布文章**——分片索引里也有草稿，`AskController` 与
@@ -311,7 +322,7 @@ cp .env.example .env
 | GET | `/api/blog/posts/{slug}/related` | 相关文章推荐（公开；只推已发布，语义相似度） |
 | GET | `/api/blog/tags` | 热门标签与篇数（公开；只统计已发布） |
 | GET | `/api/blog/stats` | 篇数 / 标签数 / 最近发布时间（公开；不含笔记总数） |
-| POST | `/api/blog/search` | 游客语义搜索，**只返回已发布文章**（公开） |
+| POST | `/api/blog/search` | 游客语义搜索，**只返回已发布文章**（公开；每分钟 60 次，每次真跑 embedding） |
 | GET | `/api/blog/posts/{slug}/comments` | 某篇文章的公开评论（公开，只含可见的） |
 | POST | `/api/blog/posts/{slug}/comments` | 游客发评论（公开；蜜罐 + 每分钟 1 条 + 每天 10 条） |
 | GET | `/api/blog/rss.xml` | RSS 2.0（公开） |
@@ -325,6 +336,19 @@ cp .env.example .env
 
 > `/api/auth/**` 是 `permitAll`，只放匿名入口（登录）。任何需要身份的写操作
 > 必须挂在 `/api/account/**` 下——这条约束写在 `SecurityConfig` 的类注释里，也有测试守着。
+> **`/api/notes/**`、`/api/admin/**`、`/api/search/**`、`/api/system/**` 与写操作
+> 的 `/api/assets/**` 都要求 `ROLE_ADMIN`**（读图 `GET /api/assets/**` 仍匿名放行）：
+> 「已登录」不等于「是管理员」，令牌缺少 role 字段一律拒绝签发校验。
+
+### 限流规则一览
+
+| 路径 | 上限 | 说明 |
+|---|---|---|
+| `/api/ask` | `RATE_LIMIT_ASK`（默认 30/分钟） | 游客问答；管理员不计数 |
+| `/api/search` | `RATE_LIMIT_SEARCH` | 管理面检索 |
+| `/api/blog/search` | `RATE_LIMIT_PUBLIC_SEARCH`（60/分钟） | 匿名语义搜索，每次真调 embedding |
+| `/api/blog/posts/*/view` | 30/分钟 | 阅读量自增 |
+| `/api/blog/posts/*/backlinks` | `RATE_LIMIT_BACKLINKS`（30/分钟） | 反向链接要扫正文，必须限流 |
 
 ### 游客问答的每日额度
 

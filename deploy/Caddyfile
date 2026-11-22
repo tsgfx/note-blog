@@ -24,6 +24,11 @@
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+		# CSP：默认只信本站。脚本全部是带 hash 的打包文件 + /theme-init.js，
+		# 所以不需要 'unsafe-inline'；样式必须放开内联（Vue 的 :style 绑定与
+		# KaTeX 都是行内 style 属性）；图片允许 https —— 681 篇笔记里有 313 篇
+		# 引用了站外图床，禁掉会让这些配图整片消失。
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 		-Server
 	}
 

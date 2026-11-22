@@ -6,18 +6,28 @@ import com.notesblog.repository.SearchLogRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SearchAnalyticsService {
 
     private final SearchLogRepository searchLogRepository;
+    /** 旁路池：写日志慢就慢，绝不占用请求线程，也不和问答流抢 commonPool。 */
+    private final Executor sideEffectExecutor;
+
+    public SearchAnalyticsService(SearchLogRepository searchLogRepository,
+                                   @Qualifier("sideEffectExecutor") Executor sideEffectExecutor) {
+        this.searchLogRepository = searchLogRepository;
+        this.sideEffectExecutor = sideEffectExecutor;
+    }
 
     /**
      * 异步记录一次搜索行为，绝不影响主接口响应延迟。
@@ -36,18 +46,23 @@ public class SearchAnalyticsService {
         }
 
         final String query = cleanQuery;
-        CompletableFuture.runAsync(() -> {
-            try {
-                SearchLog logItem = new SearchLog();
-                logItem.setQuery(query);
-                logItem.setHitCount(Math.max(0, hitCount));
-                logItem.setClientIp(clientIp != null && clientIp.length() > 60 ? clientIp.substring(0, 60) : clientIp);
-                logItem.setCreatedAt(LocalDateTime.now());
-                searchLogRepository.save(logItem);
-            } catch (Exception e) {
-                log.warn("failed_to_save_search_log query={} error={}", query, e.getMessage());
-            }
-        });
+        try {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    SearchLog logItem = new SearchLog();
+                    logItem.setQuery(query);
+                    logItem.setHitCount(Math.max(0, hitCount));
+                    logItem.setClientIp(clientIp != null && clientIp.length() > 60 ? clientIp.substring(0, 60) : clientIp);
+                    logItem.setCreatedAt(LocalDateTime.now());
+                    searchLogRepository.save(logItem);
+                } catch (Exception e) {
+                    log.warn("failed_to_save_search_log query={} error={}", query, e.getMessage());
+                }
+            }, sideEffectExecutor);
+        } catch (RejectedExecutionException | CompletionException e) {
+            // 统计日志丢了不影响本次搜索，池满时直接放弃
+            log.debug("search_log_dropped query={}", query);
+        }
     }
 
     /**

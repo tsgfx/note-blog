@@ -34,13 +34,17 @@ import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -243,7 +247,7 @@ public class NoteService {
         note.setStatus(NoteStatus.DRAFT);
         note.setTags(resolveTags(request.tags()));
         Note saved = noteRepository.save(note);
-        noteIndexService.reindex(saved.getId());
+        reindexAfterCommit(saved.getId());
         auditService.record("NOTE_CREATE", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
     }
@@ -262,14 +266,14 @@ public class NoteService {
             note.setContentMd(request.contentMd());
             // 内容改变后旧向量不能继续使用，等待异步重建。
             chunkRepository.deleteByNoteId(id);
-            vectorIndex.invalidate();
+            invalidateIndexAfterCommit();
         }
         if (request.tags() != null) note.setTags(resolveTags(request.tags()));
         if (note.getStatus() == NoteStatus.PUBLISHED && !before.equals(NoteSnapshot.of(note))) {
             note.setHasUnpublishedEdits(true);
         }
         Note saved = noteRepository.save(note);
-        if (request.contentMd() != null) noteIndexService.reindex(saved.getId());
+        if (request.contentMd() != null) reindexAfterCommit(saved.getId());
         auditService.record("NOTE_UPDATE", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
     }
@@ -284,7 +288,7 @@ public class NoteService {
         // 的关联表，Hibernate 自己会清，不用管。）
         chunkRepository.deleteByNoteId(id);
         noteRepository.delete(note);
-        vectorIndex.invalidate();
+        invalidateIndexAfterCommit();
     }
 
     @Transactional
@@ -298,7 +302,7 @@ public class NoteService {
         Note saved = noteRepository.save(note);
         // 分片缓存里固化了 published 标志（VectorIndex.Chunk），不发这次失效，
         // 刚发布的文章对公开检索和游客问答就永远不可见，直到进程重启。
-        vectorIndex.invalidate();
+        invalidateIndexAfterCommit();
         auditService.record("NOTE_PUBLISH", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
     }
@@ -314,9 +318,64 @@ public class NoteService {
         Note saved = noteRepository.save(note);
         // 下线同样要失效：缓存里那批分片还带着 published=true，不清掉等于
         // 草稿内容继续出现在公开检索结果里——比起搜不到，这条更严重。
-        vectorIndex.invalidate();
+        invalidateIndexAfterCommit();
         auditService.record("NOTE_UNPUBLISH", saved.getSlug(), saved.getTitle());
         return NoteDetailDto.from(saved);
+    }
+
+    /**
+     * 事务提交之后再排索引重建。
+     *
+     * <p><b>为什么不在事务里直接排：</b>{@code noteIndexService.reindex} 是 {@code @Async}，
+     * 一调用就进线程池，而提交可能还没发生——重建线程按 id 查库会查不到这一行（新建）或
+     * 读到旧正文（更新），只能靠下游反复轮询重试硬扛，运气不好就放弃。
+     * 提交后再排，重建线程一开始读到的就是已落库的内容。
+     *
+     * <p>队列满（{@code taskExecutor} 只有 20 个槽位）时只记一条告警：正文已经保存成功，
+     * 不该因为索引排队失败把整个请求变成 500，缺失的分片可以事后一键补建。
+     */
+    private void reindexAfterCommit(Long noteId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    queueReindex(noteId);
+                }
+            });
+        } else {
+            queueReindex(noteId);
+        }
+    }
+
+    private void queueReindex(Long noteId) {
+        try {
+            noteIndexService.reindex(noteId);
+        } catch (RejectedExecutionException e) {
+            log.warn("note_reindex_queue_full noteId={}（分片缺失可事后补建）", noteId);
+        }
+    }
+
+    /**
+     * 事务提交之后再抛弃向量快照。
+     *
+     * <p><b>为什么不能在事务里直接失效：</b>{@code VectorIndex} 是「失效后下次读重建」的懒加载缓存。
+     * 在事务提交前失效，紧接着到达的并发检索会拿**未提交**的旧数据重建快照并缓存下来——
+     * 于是刚发布的文章照样搜不到，刚下线的草稿照样出现在结果里，直到下一次有人改笔记。
+     * 提交后再失效，重建时读到的就是已落库的新状态。
+     *
+     * <p>没有事务（例如异步重建线程里调用）时直接失效。
+     */
+    private void invalidateIndexAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    vectorIndex.invalidate();
+                }
+            });
+        } else {
+            vectorIndex.invalidate();
+        }
     }
 
     /** 批量操作的单次上限，与 {@code BatchIdsRequest} 的 @Size 保持一致。 */

@@ -529,7 +529,19 @@ async function submit() {
         支持通过 iOS 快捷指令（Shortcuts）、Raycast 扩展、Alfred 脚本或外部自动化工具随时向博客草稿库写入灵感。
       </p>
 
-      <div v-if="inboxConfig" class="inbox-config-box">
+      <div v-if="inboxConfig && inboxConfig.configured === false" class="inbox-config-box">
+        <p class="muted">
+          外部剪藏入口当前<strong>未启用</strong>：服务端没有配置 <code>INBOX_TOKEN</code>。 在
+          <code>/opt/note-blog/.env</code> 里写入一行 <code>INBOX_TOKEN=一串足够长的随机字符</code>
+          并重启 backend 后，这里才会显示可用的 Token 与 cURL 示例。
+        </p>
+        <p class="muted">
+          未配置期间只有登录后的编辑器能写入，抓取接口一律返回 401； 以前那种「没配置就从 JWT 密钥派生一个默认
+          token」的行为已经取消， 因为派生值泄漏等于泄漏签名密钥的一半。
+        </p>
+      </div>
+
+      <div v-else-if="inboxConfig" class="inbox-config-box">
         <div class="field-block">
           <label class="field-label">接口地址 (Webhook URL)</label>
           <div class="copy-input-row">

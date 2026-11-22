@@ -13,8 +13,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -48,12 +50,27 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Slf4j
 @RestController
 @RequestMapping("/api/ask")
-@RequiredArgsConstructor
 public class AskController {
 
     private final SemanticSearchService searchService;
     private final LlmStreamingClient llmClient;
     private final GuestQuotaService guestQuota;
+    /**
+     * 问答专用池。以前是 {@code CompletableFuture.runAsync(...)} 不带 executor，走 commonPool——
+     * 2 核机器上 commonPool 只有 1 个线程，一路 3 分钟的流就能把搜索日志、评论通知、健康检查
+     * 全部堵死。池满时明确回一条错误事件，而不是让前端排队等到超时。
+     */
+    private final Executor askExecutor;
+
+    public AskController(SemanticSearchService searchService,
+                         LlmStreamingClient llmClient,
+                         GuestQuotaService guestQuota,
+                         @Qualifier("askExecutor") Executor askExecutor) {
+        this.searchService = searchService;
+        this.llmClient = llmClient;
+        this.guestQuota = guestQuota;
+        this.askExecutor = askExecutor;
+    }
 
     @PostMapping
     public Object ask(@Valid @RequestBody AskRequest request,
@@ -93,38 +110,49 @@ public class AskController {
         }
 
         int finalRemaining = remaining;
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (sources.isEmpty()) {
-                    send(emitter, "delta", Map.of("text", admin
-                            ? "笔记库中未检索到与该问题相关的内容。"
-                            : "笔记库中未检索到与该问题相关的公开内容。"));
-                    send(emitter, "done", Map.of("remaining", admin ? -1 : finalRemaining));
-                    emitter.complete();
-                    return;
-                }
-                String context = sources.stream()
-                        .map(s -> "[来源: " + s.title()
-                                + (s.heading() == null ? "" : " / " + s.heading()) + "]\n"
-                                + truncate(s.content(), 1500))
-                        .reduce((a, b) -> a + "\n\n" + b).orElse("");
-                String system = "你是个人知识库助手。严格依据提供的笔记片段回答。"
-                        + "如果片段没有答案，请明确说明。用中文回答，不要输出思考过程。";
-                String user = "笔记片段：\n" + context + "\n\n问题：" + request.question();
-                llmClient.stream(system, user, piece -> send(emitter, "delta", Map.of("text", piece)));
-                send(emitter, "done", Map.of("remaining", admin ? -1 : finalRemaining));
-                emitter.complete();
-            } catch (LlmException e) {
-                log.warn("ask_failed question={} kind={} msg={}", request.question(), e.kind(), e.getMessage());
-                send(emitter, "error", Map.of("message", e.getMessage(), "kind", e.kind().name()));
-                emitter.complete();
-            } catch (Exception e) {
-                log.error("ask_failed question={}", request.question(), e);
-                send(emitter, "error", Map.of("message", "问答服务暂时不可用，请稍后重试"));
-                emitter.complete();
-            }
-        });
+        try {
+            CompletableFuture.runAsync(() -> streamAnswer(emitter, sources, admin, finalRemaining, request.question()),
+                    askExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("ask_rejected concurrency_limit question={}", request.question());
+            send(emitter, "error", Map.of("message", "问答并发已满，请稍后重试", "kind", "BUSY"));
+            emitter.complete();
+        }
         return emitter;
+    }
+
+    /** 异步段：检索结果已在手上，这里只负责把 LLM 输出推回 SSE。 */
+    private void streamAnswer(SseEmitter emitter, List<SearchResultDto> sources,
+                              boolean admin, int remaining, String question) {
+        try {
+            if (sources.isEmpty()) {
+                send(emitter, "delta", Map.of("text", admin
+                        ? "笔记库中未检索到与该问题相关的内容。"
+                        : "笔记库中未检索到与该问题相关的公开内容。"));
+                send(emitter, "done", Map.of("remaining", admin ? -1 : remaining));
+                emitter.complete();
+                return;
+            }
+            String context = sources.stream()
+                    .map(s -> "[来源: " + s.title()
+                            + (s.heading() == null ? "" : " / " + s.heading()) + "]\n"
+                            + truncate(s.content(), 1500))
+                    .reduce((a, b) -> a + "\n\n" + b).orElse("");
+            String system = "你是个人知识库助手。严格依据提供的笔记片段回答。"
+                    + "如果片段没有答案，请明确说明。用中文回答，不要输出思考过程。";
+            String user = "笔记片段：\n" + context + "\n\n问题：" + question;
+            llmClient.stream(system, user, piece -> send(emitter, "delta", Map.of("text", piece)));
+            send(emitter, "done", Map.of("remaining", admin ? -1 : remaining));
+            emitter.complete();
+        } catch (LlmException e) {
+            log.warn("ask_failed question={} kind={} msg={}", question, e.kind(), e.getMessage());
+            send(emitter, "error", Map.of("message", e.getMessage(), "kind", e.kind().name()));
+            emitter.complete();
+        } catch (Exception e) {
+            log.error("ask_failed question={}", question, e);
+            send(emitter, "error", Map.of("message", "问答服务暂时不可用，请稍后重试"));
+            emitter.complete();
+        }
     }
 
     /**

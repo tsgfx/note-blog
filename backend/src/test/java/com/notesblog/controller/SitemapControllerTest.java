@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
 import com.notesblog.repository.NoteRepository;
 import java.time.LocalDateTime;
@@ -17,8 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -45,20 +42,29 @@ class SitemapControllerTest {
     @MockitoBean
     private com.notesblog.service.AuthService authService;
 
-    private Note note(String slug) {
-        Note note = new Note();
-        note.setTitle(slug);
-        note.setSlug(slug);
-        note.setStatus(NoteStatus.PUBLISHED);
-        note.setPublishedAt(LocalDateTime.of(2026, 10, 25, 20, 9, 43));
-        note.setUpdatedAt(LocalDateTime.of(2026, 10, 26, 9, 0, 0));
-        return note;
+    /** 投影视图的最小实现：sitemap 只读这两列 */
+    private NoteRepository.PublishedRef ref(String slug) {
+        return new NoteRepository.PublishedRef() {
+            @Override
+            public String getSlug() {
+                return slug;
+            }
+
+            @Override
+            public LocalDateTime getUpdatedAt() {
+                return LocalDateTime.of(2026, 10, 26, 9, 0, 0);
+            }
+
+            @Override
+            public LocalDateTime getPublishedAt() {
+                return LocalDateTime.of(2026, 10, 25, 20, 9, 43);
+            }
+        };
     }
 
     private void stub() {
-        when(noteRepository.findByStatus(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
-                .thenAnswer(invocation -> new PageImpl<>(
-                        List.of(note("文章一"), note("文章二")), invocation.getArgument(1), 2));
+        when(noteRepository.findPublishedRefs(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
+                .thenReturn(List.of(ref("文章一"), ref("文章二")));
     }
 
     @Test
@@ -89,14 +95,13 @@ class SitemapControllerTest {
     @Test
     @DisplayName("只查已发布状态，条数上限走 app.sitemap.max-items")
     void queriesPublishedWithLimit() throws Exception {
-        when(noteRepository.findByStatus(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
+        when(noteRepository.findPublishedRefs(eq(NoteStatus.PUBLISHED), any(Pageable.class)))
                 .thenAnswer(invocation -> {
                     Pageable pageable = invocation.getArgument(1);
                     if (pageable.getPageSize() != 2) {
                         throw new AssertionError("期望每页 2 条，实际 " + pageable.getPageSize());
                     }
-                    Page<Note> page = new PageImpl<>(List.of(), pageable, 0);
-                    return page;
+                    return List.<NoteRepository.PublishedRef>of();
                 });
 
         mockMvc.perform(get("/api/blog/sitemap.xml")).andExpect(status().isOk());

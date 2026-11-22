@@ -1,5 +1,9 @@
 import MarkdownIt from 'markdown-it'
 import katexPlugin from '@traptitech/markdown-it-katex'
+// KaTeX 样式跟渲染链一起按需加载：谁用到 markdown.ts 谁才付这份 CSS。
+// 覆盖规则写在 style.css 里且选择器更具体（.prose .katex 高于 .katex），
+// 所以不再依赖「先于 style.css 加载」的先后顺序。
+import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js/lib/common'
 
 const md = new MarkdownIt({

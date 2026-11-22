@@ -55,7 +55,6 @@ class InboxServiceTest {
     @Test
     @DisplayName("快捷捕捉入库：保存为草稿并归入收件箱目录，触发向量重建与审计日志")
     void captureDraftNote() {
-        ReflectionTestUtils.setField(inboxService, "jwtSecret", "test-secret-at-least-32-bytes");
         when(tagRepository.findByName(any())).thenAnswer(inv -> Optional.of(new Tag(inv.getArgument(0))));
         when(noteRepository.save(any(Note.class))).thenAnswer(inv -> {
             Note n = inv.getArgument(0);
@@ -81,12 +80,18 @@ class InboxServiceTest {
     }
 
     @Test
-    @DisplayName("授权校验：匹配显式 Token 与派生 Token")
+    @DisplayName("授权校验：只认显式 Token（请求头或 Bearer），未配置时外部入口关闭")
     void authorizationChecks() {
         ReflectionTestUtils.setField(inboxService, "configuredToken", "my-secret-token-123");
-        assertThat(inboxService.isAuthorized(null, "my-secret-token-123", null, null)).isTrue();
-        assertThat(inboxService.isAuthorized("Bearer my-secret-token-123", null, null, null)).isTrue();
-        assertThat(inboxService.isAuthorized(null, null, "my-secret-token-123", null)).isTrue();
-        assertThat(inboxService.isAuthorized(null, "wrong-token", null, null)).isFalse();
+        assertThat(inboxService.isAuthorized(null, "my-secret-token-123", null)).isTrue();
+        assertThat(inboxService.isAuthorized("Bearer my-secret-token-123", null, null)).isTrue();
+        assertThat(inboxService.isAuthorized(null, "wrong-token", null)).isFalse();
+
+        // 未配置 INBOX_TOKEN：不再从 jwt-secret 派生，外部写入直接关闭
+        ReflectionTestUtils.setField(inboxService, "configuredToken", "");
+        assertThat(inboxService.isTokenConfigured()).isFalse();
+        assertThat(inboxService.isAuthorized(null, "", null)).isFalse();
+        assertThat(inboxService.isAuthorized(null, null, null)).isFalse();
+        assertThat(inboxService.getConfig()).containsEntry("configured", false);
     }
 }

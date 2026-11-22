@@ -1,6 +1,7 @@
 package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
+import com.notesblog.common.ClientIp;
 import com.notesblog.common.NotFoundException;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
@@ -88,7 +89,7 @@ public class PublicBlogController {
         if (tags != null || kw != null) {
             Page<NoteSummaryDto> pageResult = noteService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable);
             if (kw != null) {
-                searchAnalyticsService.recordSearchAsync(kw, (int) pageResult.getTotalElements(), resolveClientIp(servletRequest));
+                searchAnalyticsService.recordSearchAsync(kw, (int) pageResult.getTotalElements(), ClientIp.of(servletRequest));
             }
             return ApiResponse.ok(pageResult);
         }
@@ -190,18 +191,4 @@ public class PublicBlogController {
                 noteRepository.findLatestPublishedAt(NoteStatus.PUBLISHED)));
     }
 
-    private static String resolveClientIp(HttpServletRequest request) {
-        if (request == null) return "unknown";
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null ? "unknown" : ip;
-    }
 }

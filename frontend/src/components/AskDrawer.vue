@@ -10,7 +10,7 @@ import {
   closeDrawer,
   copyText,
   examples,
-  html,
+  renderSrc,
   isOpen,
   messages,
   question,
@@ -24,6 +24,8 @@ import {
 import { isLoggedIn } from '../api/auth'
 
 const router = useRouter()
+/** 流式消息的渲染结果；合帧逻辑在 lib/askState.ts（只攒源码，不碰 markdown） */
+const html = computed(() => renderMarkdown(renderSrc.value))
 const inputEl = ref<HTMLTextAreaElement>()
 const listEl = ref<HTMLElement>()
 

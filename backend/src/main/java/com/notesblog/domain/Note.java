@@ -71,6 +71,15 @@ public class Note {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * 标签是 LAZY 的：列表页一页 20 篇，逐篇 getTags() 会打出 20 条额外查询。
+     *
+     * <p>加 {@code @BatchSize} 后 Hibernate 会把这些懒加载合并成「一页一条」，
+     * 公开列表与 RSS 这类「标题+摘要+标签」的场景只多一次往返。
+     * 不用 {@code @EntityGraph(fetch join)}：那会和分页一起走内存分页，
+     * 反倒把整库标签 join 出来。
+     */
+    @org.hibernate.annotations.BatchSize(size = 50)
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "note_tags",

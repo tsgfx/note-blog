@@ -1,5 +1,7 @@
 server:
   port: 8080
+  # 停机时停止接收新连接，等在途请求（问答 SSE 最长 3 分钟，这里最多等 20 秒）收尾
+  shutdown: graceful
 
 assets:
   # 图片根目录；默认指向项目根下的 storage/assets（以 backend 目录为工作目录启动）
@@ -33,6 +35,19 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10
+      # 池子满了别无限等：默认 30 秒，请求线程都挂在这里，前端看到的是「转圈然后超时」。
+      # 3 秒快速失败，前端能立刻看到 500/503 而不是干等。
+      connection-timeout: 3000
+      # 校验连接可用性（MySQL 8h wait_timeout 会悄悄掐掉空闲连接）
+      validation-timeout: 2000
+      # 连接最长活 25 分钟、空闲 5 分钟回收：比 MySQL 的 wait_timeout 短，
+      # 避免拿到一个已被服务端断开、首次查询才报错的连接。
+      max-lifetime: 1500000
+      idle-timeout: 300000
+      keepalive-time: 120000
+  # 优雅停机：收到 SIGTERM 后先不再接新请求，再给在途请求（含 SSE）留时间写完
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   jpa:
     hibernate:
       # 表结构由 db/schema.sql 显式管理，应用不建表也不改表
@@ -67,11 +82,13 @@ notes:
     api-key: ${LLM_API_KEY:}
     user-agent: notes-blog/0.1
 
+# 默认值**故意为空**：漏设环境变量就起不来（见 StartupSecretsCheck）。
+# 本地开发用 --spring.profiles.active=dev 拿到 application-dev.yml 里的固定口令。
 security:
-  jwt-secret: ${JWT_SECRET:change-this-development-secret-to-a-long-random-value-please}
+  jwt-secret: ${JWT_SECRET:}
   jwt-expiration-hours: ${JWT_EXPIRATION_HOURS:24}
   admin-username: ${ADMIN_USERNAME:admin}
-  admin-password: ${ADMIN_PASSWORD:change-me-now}
+  admin-password: ${ADMIN_PASSWORD:}
 
 app:
   cors:
@@ -110,6 +127,11 @@ app:
     # 阅读量计数：正常读者一篇文章在一个会话里只上报一次，30/分钟足够；
     # 不限流的话一个 curl 循环就能把自己刷成「热门第一」。
     view-per-minute: ${RATE_LIMIT_VIEW:30}
+    # 公开检索 /api/blog/search 同样要跑一次 embedding，按 search 的口径限流
+    public-search-per-minute: ${RATE_LIMIT_PUBLIC_SEARCH:60}
+    # 公开反向链接 /api/blog/posts/<slug>/backlinks：对整库正文做 LIKE 全表扫，
+    # 是站上最贵的匿名读接口。读者一次详情页最多调两次，30 足够。
+    backlinks-per-minute: ${RATE_LIMIT_BACKLINKS:30}
 
   guest:
     # 游客每日问答条数：对单个浏览器的承诺值，前端据此显示「还可提问 N 次」。
@@ -118,6 +140,12 @@ app:
     # 刻意大于上面的承诺值：手机流量与不少宽带是共享出口 IP，
     # 严格按承诺值会让别人问不了。前端已经把单浏览器压到承诺值了。
     ask-ip-daily-ceiling: ${GUEST_ASK_IP_DAILY_CEILING:15}
+
+  inbox:
+    # 外部剪藏（iOS 快捷指令 / Raycast）的写权限 Token。
+    # 未设置 = 关闭外部写入口，只有登录后的编辑器能写——不再从 jwt-secret 派生，
+    # 因为派生值一旦泄漏到日志里就等于泄漏了签名密钥的一半。
+    token: ${INBOX_TOKEN:}
 
 logging:
   level:

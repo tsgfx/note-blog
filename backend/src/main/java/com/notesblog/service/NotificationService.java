@@ -9,8 +9,11 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,27 +31,48 @@ public class NotificationService {
     private final String baseUrl;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    /** 旁路池：外部 webhook 可能挂 4 秒，绝不能占请求线程或 commonPool。 */
+    private final Executor executor;
 
     @Autowired
     public NotificationService(
             @Value("${app.notification.webhook-url:}") String webhookUrl,
             @Value("${site.base-url:http://localhost:5173}") String baseUrl,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Qualifier("sideEffectExecutor") Executor executor) {
         this(webhookUrl, baseUrl, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
-                .build());
+                .build(), executor);
     }
 
-    /** 供测试注入 HttpClient */
+    /** 供测试直接构造（默认 HttpClient，同步执行） */
+    public NotificationService(String webhookUrl, String baseUrl, ObjectMapper objectMapper) {
+        this(webhookUrl, baseUrl, objectMapper, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build(), Runnable::run);
+    }
+
+    /** 供测试注入 HttpClient（不给 executor 时同步执行，断言更确定） */
     public NotificationService(
             String webhookUrl,
             String baseUrl,
             ObjectMapper objectMapper,
             HttpClient httpClient) {
+        this(webhookUrl, baseUrl, objectMapper, httpClient, Runnable::run);
+    }
+
+    /** 供测试注入 HttpClient 与执行器 */
+    public NotificationService(
+            String webhookUrl,
+            String baseUrl,
+            ObjectMapper objectMapper,
+            HttpClient httpClient,
+            Executor executor) {
         this.webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
+        this.executor = executor;
     }
 
     /** 是否启用了通知 */
@@ -69,6 +93,7 @@ public class NotificationService {
             return;
         }
 
+        try {
         CompletableFuture.runAsync(() -> {
             try {
                 String articleUrl = baseUrl + "/blog/" + postSlug;
@@ -91,7 +116,10 @@ public class NotificationService {
             } catch (Exception e) {
                 log.warn("notification_webhook_failed slug={} error={}", postSlug, e.getMessage());
             }
-        });
+        }, executor);
+        } catch (RejectedExecutionException e) {
+            log.debug("notification_dropped slug={}", postSlug);
+        }
     }
 
     /**

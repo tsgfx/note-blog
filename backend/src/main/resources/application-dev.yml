@@ -1,0 +1,9 @@
+# 本地开发用的固定口令。**只给 `mvn spring-boot:run -Dspring-boot.run.profiles=dev` 用**，
+# 生产绝不激活这个 profile（compose 里不传 SPRING_PROFILES_ACTIVE，默认就是无 profile）。
+#
+# 为什么不把这两行留在 application.yml 里：留成「有可用的默认值」意味着
+# 忘了设环境变量服务照样能起，任何人用文档里的口令就能登录。
+# 现在默认值故意为空，{@code StartupSecretsCheck} 启动即报错。
+security:
+  jwt-secret: ${JWT_SECRET:dev-only-signing-secret-please-never-use-in-production-32}
+  admin-password: ${ADMIN_PASSWORD:change-me-now}

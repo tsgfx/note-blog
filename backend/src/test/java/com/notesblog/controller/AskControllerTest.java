@@ -27,6 +27,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,7 +37,17 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @WebMvcTest(controllers = AskController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(AskControllerTest.ExecutorConfig.class)
 class AskControllerTest {
+
+    /** 切片不会加载 AsyncConfig，这里补一个真执行器，否则 SSE 流根本不会跑。 */
+    @TestConfiguration
+    static class ExecutorConfig {
+        @Bean(name = "askExecutor", destroyMethod = "shutdown")
+        java.util.concurrent.ExecutorService askExecutor() {
+            return java.util.concurrent.Executors.newSingleThreadExecutor();
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;

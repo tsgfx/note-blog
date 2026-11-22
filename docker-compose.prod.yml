@@ -29,7 +29,10 @@ x-hardening: &hardening
 
 services:
   mysql:
-    image: mysql:9
+    # 钉在次版本号上：`mysql:9` 这种浮动标签会在重启/重建时悄悄换掉主版本，
+    # 而 MySQL 的大版本升级要跑 mysql_upgrade，直接换镜像可能起不来。
+    # 升级流程：改这里 → 备份 → docker compose up -d mysql → 观察日志。
+    image: mysql:9.7
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?生产环境必须在 .env 里设置 MYSQL_ROOT_PASSWORD}
@@ -52,6 +55,10 @@ services:
       timeout: 5s
       retries: 24
       start_period: 60s
+    # 其余服务都有上限，唯独 mysql 没有——2G 机器上它一旦被慢查询喂胖，
+    # 会把 backend 和 Caddy 一起挤进 swap。256M 的 buffer pool 实占约 450M，
+    # 768M 够正常负载，又能在失控时被内核收住。
+    mem_limit: 768m
     logging: *logging
     networks: [nb]
 
@@ -113,11 +120,29 @@ services:
       # 而不是「今天的次数用完了」。端到端实测过：10 对 15 时第 11 次就被分钟限流拦。
       RATE_LIMIT_ASK: ${RATE_LIMIT_ASK:-25}
       RATE_LIMIT_SEARCH: ${RATE_LIMIT_SEARCH:-60}
+      # 公开检索（/api/blog/search）同样每次跑 embedding，按 search 口径限
+      RATE_LIMIT_PUBLIC_SEARCH: ${RATE_LIMIT_PUBLIC_SEARCH:-60}
+      # 反向链接对整库正文做 LIKE 全表扫，匿名可调，必须限流
+      RATE_LIMIT_BACKLINKS: ${RATE_LIMIT_BACKLINKS:-30}
       # 游客每日问答：5 是对单浏览器的承诺值（前端显示剩余），15 是按 IP 的服务端硬上限
       # （共享出口 IP 的误伤余量，落库、重启不清零）
       GUEST_ASK_DAILY_ALLOWANCE: ${GUEST_ASK_DAILY_ALLOWANCE:-5}
       GUEST_ASK_IP_DAILY_CEILING: ${GUEST_ASK_IP_DAILY_CEILING:-15}
+      # 外部剪藏 Token：留空 = 关闭外部写入口（只有登录后的编辑器能写）。
+      # 不设默认值，也不从 JWT_SECRET 派生——派生值出现在日志里就等于泄漏签名密钥。
+      INBOX_TOKEN: ${INBOX_TOKEN:-}
       ASSETS_ROOT: /data/assets
+    # 容器内只跑 JRE 与 bash（eclipse-temurin 基于 Ubuntu，自带 bash）：
+    # 用 bash 的 /dev/tcp 做端口探活，不为健康检查额外装 curl。
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 40s
+    # 优雅停机：SIGTERM 后 Spring 最多等 20s（lifecycle.timeout-per-shutdown-phase），
+    # 这里给到 30s，超过就会 SIGKILL 掉正在写的 SSE / 正在提交的事务。
+    stop_grace_period: 30s
     volumes:
       - ./storage/assets:/data/assets
       - ./backups:/data/backups:ro
@@ -131,7 +156,18 @@ services:
     restart: unless-stopped
     <<: *hardening
     depends_on:
-      - backend
+      backend:
+        # 后端没起来时前端反代只会 502，先把静态站挂上来没有意义
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    stop_grace_period: 10s
+    # 纯静态文件 + 反代，几十 MB 就够；上限只是防止异常时抢内存
+    mem_limit: 96m
     volumes:
       # 边缘规则挂载覆盖镜像里的 default.conf：
       # 改限流/黑名单后只需 restart frontend，不用 rebuild（静态文件仍然打在镜像里）
@@ -142,11 +178,24 @@ services:
     networks: [nb]
 
   caddy:
-    image: caddy:2-alpine
+    # 同理钉次版本：`caddy:2-alpine` 会在重建时换掉 2.x 的具体版本
+    image: caddy:2.11-alpine
     restart: unless-stopped
     <<: *hardening
     depends_on:
-      - frontend
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      # 只探 80 端口是否在监听：Caddy 按域名分流，用 Host=localhost 请求会落到 404，
+      # 但那也说明进程活着，所以用 nc 看端口而不是看状态码。
+      test: ["CMD", "nc", "-z", "127.0.0.1", "80"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    stop_grace_period: 10s
+    # Caddy 带自动签发/续期与压缩，实测 40~60M；192M 留足 TLS 与并发余量
+    mem_limit: 192m
     environment:
       DOMAIN: ${DOMAIN:?生产环境必须在 .env 里设置 DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?生产环境必须在 .env 里设置 ACME_EMAIL（证书到期通知邮箱）}

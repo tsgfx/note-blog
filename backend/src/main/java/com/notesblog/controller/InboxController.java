@@ -1,6 +1,7 @@
 package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
+import com.notesblog.common.ClientIp;
 import com.notesblog.dto.QuickCaptureRequest;
 import com.notesblog.dto.QuickCaptureResponseDto;
 import com.notesblog.service.InboxService;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -31,15 +31,16 @@ public class InboxController {
             @Valid @RequestBody QuickCaptureRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestHeader(value = "X-Inbox-Token", required = false) String customTokenHeader,
-            @RequestParam(value = "token", required = false) String queryToken,
             Authentication authentication,
             HttpServletRequest servletRequest) {
 
-        if (!inboxService.isAuthorized(authHeader, customTokenHeader, queryToken, authentication)) {
-            return ApiResponse.error(401, "剪藏未授权：请在请求头提供有效的 X-Inbox-Token 或 Bearer Token");
+        if (!inboxService.isAuthorized(authHeader, customTokenHeader, authentication)) {
+            return ApiResponse.error(401, inboxService.isTokenConfigured()
+                    ? "剪藏未授权：请在请求头提供有效的 X-Inbox-Token 或 Bearer Token"
+                    : "剪藏未启用：服务端未配置 INBOX_TOKEN，只能登录后从设置页写入");
         }
 
-        String clientIp = resolveClientIp(servletRequest);
+        String clientIp = ClientIp.of(servletRequest);
         return ApiResponse.ok(inboxService.capture(request, clientIp));
     }
 
@@ -51,18 +52,4 @@ public class InboxController {
         return ApiResponse.ok(inboxService.getConfig());
     }
 
-    private static String resolveClientIp(HttpServletRequest request) {
-        if (request == null) return "unknown";
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null ? "unknown" : ip;
-    }
 }

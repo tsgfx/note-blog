@@ -222,12 +222,23 @@ public class RecommendationService {
         return selected;
     }
 
+    /**
+     * 历史足迹最多认这么多条。
+     *
+     * <p>每个 slug 都是一次按 slug 的单查（没有批量接口），而 history 是匿名可传的请求参数：
+     * 不设上限，一个 `?history=a,b,c,…` 几千段的请求就能变成几千次数据库查询。
+     * 20 条对「最近读过的文章」这个语义完全够用——前端 localStorage 也只留最近若干篇。
+     */
+    private static final int MAX_HISTORY_SLUGS = 20;
+
     private List<Note> resolveHistoryNotes(List<String> historySlugs) {
         if (historySlugs == null || historySlugs.isEmpty()) {
             return Collections.emptyList();
         }
         List<Note> list = new ArrayList<>();
+        int seen = 0;
         for (String slug : historySlugs) {
+            if (seen++ >= MAX_HISTORY_SLUGS) break;
             if (slug == null || slug.isBlank()) continue;
             Optional<Note> opt = noteRepository.findBySlug(slug.trim());
             if (opt.isPresent() && opt.get().getStatus() == NoteStatus.PUBLISHED) {

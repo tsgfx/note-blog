@@ -119,6 +119,25 @@ class SecurityConfigTest {
     }
 
     @Test
+    @DisplayName("有令牌但不是 ADMIN：403，不能读写管理面")
+    void nonAdminTokenIsForbiddenOnAdminSurface() throws Exception {
+        String viewer = jwtService.issue("viewer", "VIEWER", 0L);
+
+        mockMvc.perform(get("/api/notes").header("Authorization", "Bearer " + viewer))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("令牌里没有角色：401 —— 不能默认升格成 ADMIN")
+    void tokenWithoutRoleIsRejected() throws Exception {
+        String anonymous = jwtService.issue("ghost", null, 0L);
+
+        mockMvc.perform(get("/api/notes").header("Authorization", "Bearer " + anonymous))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("公开博客列表不需要令牌")
     void publicBlogIsAnonymous() throws Exception {
         when(noteRepository.findByStatus(any(NoteStatus.class), any()))

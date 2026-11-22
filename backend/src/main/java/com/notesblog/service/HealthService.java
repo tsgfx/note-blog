@@ -5,9 +5,11 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,6 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class HealthService {
 
     /** 依赖检查的总预算。一个健康检查不该让人等 10 秒。 */
@@ -38,6 +39,23 @@ public class HealthService {
 
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingProbe embeddingProbe;
+    /**
+     * 健康探针专用池。
+     *
+     * <p>以前这里用 {@code CompletableFuture.supplyAsync(...)}，走的是 commonPool——2 核机器上
+     * 只有 1 个线程，被一路 3 分钟的问答流占住时，健康检查的 1.5 秒预算还没开始计时就已经在排队，
+     * Docker 看到的就是「后端不健康」，于是重启一个其实没问题的容器。
+     */
+    private final Executor probeExecutor;
+
+    @Autowired
+    public HealthService(JdbcTemplate jdbcTemplate,
+                         EmbeddingProbe embeddingProbe,
+                         @Qualifier("healthExecutor") Executor probeExecutor) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.embeddingProbe = embeddingProbe;
+        this.probeExecutor = probeExecutor;
+    }
 
     /**
      * 部署版本，由部署脚本写进 .env 的 {@code APP_VERSION}（短 commit）。
@@ -74,7 +92,8 @@ public class HealthService {
     private boolean pingDatabase() {
         try {
             Boolean ok = CompletableFuture
-                    .supplyAsync(() -> jdbcTemplate.queryForObject("select 1", Integer.class) != null)
+                    .supplyAsync(() -> jdbcTemplate.queryForObject("select 1", Integer.class) != null,
+                            probeExecutor)
                     .completeOnTimeout(false, BUDGET_MILLIS, TimeUnit.MILLISECONDS)
                     .get();
             return Boolean.TRUE.equals(ok);

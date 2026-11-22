@@ -1,6 +1,5 @@
 package com.notesblog.controller;
 
-import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
 import com.notesblog.repository.NoteRepository;
 import java.time.LocalDateTime;
@@ -9,7 +8,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,9 +46,11 @@ public class SitemapController {
     @Transactional(readOnly = true)
     public String sitemap() {
         String base = siteUrl();
-        List<Note> posts = noteRepository.findByStatus(NoteStatus.PUBLISHED,
-                PageRequest.of(0, Math.max(maxItems, 1), Sort.by(Sort.Direction.DESC, "publishedAt")))
-                .getContent();
+        // 只取 slug 与时间三列（见 NoteRepository.findPublishedRefs 的注释）：
+        // sitemap 一条记录用不到正文，没必要把几百篇 MEDIUMTEXT 读进内存。
+        // 排序写在 JPQL 里（publishedAt desc），这里不再传 Sort，免得拼出两个 order by。
+        List<NoteRepository.PublishedRef> posts = noteRepository.findPublishedRefs(
+                NoteStatus.PUBLISHED, PageRequest.of(0, Math.max(maxItems, 1)));
 
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
@@ -58,7 +58,7 @@ public class SitemapController {
         // 首页（名片）与博客列表：这两页是常驻入口，没有 lastmod 语义，不硬编时间
         xml.append(url(base + "/", null, "1.0"));
         xml.append(url(base + "/blog", null, "0.9"));
-        for (Note note : posts) {
+        for (NoteRepository.PublishedRef note : posts) {
             xml.append(url(base + "/blog/" + note.getSlug(), lastmod(note), "0.8"));
         }
         return xml.append("</urlset>\n").toString();
@@ -94,7 +94,7 @@ public class SitemapController {
     }
 
     /** 优先用更新时间：正文改过但没重新发布，也是页面内容变了。 */
-    private static String lastmod(Note note) {
+    private static String lastmod(NoteRepository.PublishedRef note) {
         LocalDateTime time = note.getUpdatedAt() != null ? note.getUpdatedAt() : note.getPublishedAt();
         return time == null ? null : DATE.format(time);
     }

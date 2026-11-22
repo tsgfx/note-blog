@@ -30,10 +30,9 @@ export default defineConfig({
         /**
          * KaTeX 单独成包（约 270 kB）。
          *
-         * <p>它被 lib/markdown.ts 引用，而问答抽屉 AskDrawer 在 App.vue 里是静态
-         * import，于是整条渲染链都落到首屏 chunk 里——加公式渲染后主包从 330 kB
-         * 涨到 595 kB。拆出来之后主包回落到原来的量级，KaTeX 走并行请求，
-         * 且它版本极少变动，能被浏览器长期缓存。
+         * <p>它被 lib/markdown.ts 引用。AskDrawer 现在改成 defineAsyncComponent
+         * 按需加载，所以这条渲染链（KaTeX + highlight.js）不再进首屏；
+         * 单独成包是为了让它在多个懒加载路由之间共用同一份缓存。
          */
         manualChunks(id: string) {
           if (id.includes('node_modules/katex')) return 'katex'

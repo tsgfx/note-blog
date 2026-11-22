@@ -65,3 +65,9 @@ deploy/rehearsal/.env
 
 # Tiptap v3 迁移试验封存的测试资产（等下次升级窗口启用）
 frontend/e2e-v3-park/
+
+# .env 的本地备份（cp .env .env.bak-<时间> 产生）：内容与 .env 相同，同样不能入库
+.env.bak-*
+
+# 验证截图（含笔记正文与个人内容）
+runtime/

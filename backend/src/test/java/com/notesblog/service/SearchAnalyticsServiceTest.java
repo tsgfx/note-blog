@@ -11,11 +11,11 @@ import com.notesblog.dto.SearchInsightsDto;
 import com.notesblog.repository.SearchLogRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
@@ -26,17 +26,19 @@ class SearchAnalyticsServiceTest {
     @Mock
     private SearchLogRepository searchLogRepository;
 
-    @InjectMocks
+    /** 同步执行，断言不必 sleep；必须在 @Mock 注入之后再构造。 */
     private SearchAnalyticsService searchAnalyticsService;
+
+    @BeforeEach
+    void setUp() {
+        searchAnalyticsService = new SearchAnalyticsService(searchLogRepository, Runnable::run);
+    }
 
     @Test
     @DisplayName("搜索记录：截取超长查询词并异步保存搜索日志")
     void recordSearchAsyncSavesCleanQuery() throws Exception {
         String longQuery = "a".repeat(120);
         searchAnalyticsService.recordSearchAsync(longQuery, 0, "127.0.0.1");
-
-        // CompletableFuture 稍微等待执行完成
-        Thread.sleep(150);
 
         ArgumentCaptor<SearchLog> captor = ArgumentCaptor.forClass(SearchLog.class);
         verify(searchLogRepository).save(captor.capture());

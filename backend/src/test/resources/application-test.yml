@@ -3,3 +3,9 @@ logging:
     root: WARN
     com.notesblog: WARN
     org.springframework: WARN
+
+# 主配置里 security 的默认值故意是空（生产漏设就启动失败，见 StartupSecretsCheck），
+# 切片测试与冒烟测试需要一份可用的值，否则上下文起不来。
+security:
+  jwt-secret: test-only-signing-secret-0123456789abcdef-0123456789
+  admin-password: test-admin-password

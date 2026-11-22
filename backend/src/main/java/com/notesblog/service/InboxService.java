@@ -7,12 +7,9 @@ import com.notesblog.dto.QuickCaptureRequest;
 import com.notesblog.dto.QuickCaptureResponseDto;
 import com.notesblog.repository.NoteRepository;
 import com.notesblog.repository.TagRepository;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +24,8 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -44,41 +43,42 @@ public class InboxService {
     @Value("${app.inbox.token:}")
     private String configuredToken;
 
-    @Value("${security.jwt-secret:}")
-    private String jwtSecret;
-
     @Value("${site.base-url:http://localhost:5173}")
     private String baseUrl;
 
     /**
-     * 计算当前生效的剪藏授权 Token。
-     * 优先使用显式配置的 {@code app.inbox.token}；未显式配置时，根据 jwtSecret 稳定派生安全 Token。
+     * 当前生效的剪藏授权 Token：只认显式配置的 {@code app.inbox.token}。
+     *
+     * <p><b>以前这里会在未配置时用 {@code jwtSecret} 派生一个</b>，那是坏设计：
+     * 派生值等于 JWT 签名密钥的哈希，一旦这串 token 出现在快捷指令、浏览器历史、
+     * nginx 日志里（它曾经还能走 {@code ?token=}），就等于把签发令牌的钥匙交出去一半；
+     * 而且「没配置也能用」让漏配配置变成静默成功。现在未配置 = 关闭，只有已登录管理员还能写。
      */
     public String getEffectiveToken() {
-        if (configuredToken != null && !configuredToken.isBlank()) {
-            return configuredToken.trim();
-        }
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(("inbox-capture-salt:" + (jwtSecret == null ? "notes-blog-secret" : jwtSecret)).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash).substring(0, 24);
-        } catch (Exception e) {
-            return "inbox-" + Math.abs((jwtSecret == null ? "" : jwtSecret).hashCode());
-        }
+        return configuredToken == null ? "" : configuredToken.trim();
+    }
+
+    /** 剪藏功能是否已配置外部 Token。 */
+    public boolean isTokenConfigured() {
+        return !getEffectiveToken().isEmpty();
     }
 
     /**
-     * 校验请求是否具备剪藏写入权限（支持已登录管理员、Bearer Token、X-Inbox-Token 头以及 Query Token）。
+     * 校验请求是否具备剪藏写入权限：已登录管理员，或带 {@code X-Inbox-Token} / Bearer Token 的调用方。
+     *
+     * <p>不再接受 {@code ?token=}：查询串会进 nginx access log、浏览器历史和 Referer，
+     * 等于把长期有效的凭写权限的密钥写进日志。
      */
-    public boolean isAuthorized(String authHeader, String customTokenHeader, String queryToken, Authentication authentication) {
+    public boolean isAuthorized(String authHeader, String customTokenHeader, Authentication authentication) {
         if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
             return true;
         }
         String expected = getEffectiveToken();
-        if (customTokenHeader != null && expected.equalsIgnoreCase(customTokenHeader.trim())) {
-            return true;
+        if (expected.isEmpty()) {
+            // 未配置 = 关掉外部写入口，而不是退回到某个可推导的默认值
+            return false;
         }
-        if (queryToken != null && expected.equalsIgnoreCase(queryToken.trim())) {
+        if (customTokenHeader != null && expected.equalsIgnoreCase(customTokenHeader.trim())) {
             return true;
         }
         if (authHeader != null && authHeader.regionMatches(true, 0, "Bearer ", 0, 7)) {
@@ -88,6 +88,15 @@ public class InboxService {
             }
         }
         return false;
+    }
+
+    /** 队列满只记告警：正文已入库，分片可以事后一键补建。 */
+    private void queueReindex(Long noteId) {
+        try {
+            noteIndexService.reindex(noteId);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            log.warn("inbox_reindex_queue_full noteId={}", noteId);
+        }
     }
 
     /**
@@ -108,7 +117,17 @@ public class InboxService {
         note.setTags(resolveTags(tags));
 
         Note saved = noteRepository.save(note);
-        noteIndexService.reindex(saved.getId());
+        // 提交后再排索引：事务还没提交时重建线程按 id 查不到这一行（见 NoteService.reindexAfterCommit）
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    queueReindex(saved.getId());
+                }
+            });
+        } else {
+            queueReindex(saved.getId());
+        }
 
         String sourceDesc = (request.source() != null && !request.source().isBlank())
                 ? request.source().trim()
@@ -131,9 +150,20 @@ public class InboxService {
      * 获取外部快捷捕捉工具配置与调用示例。
      */
     public Map<String, Object> getConfig() {
-        String token = getEffectiveToken();
         String normalizedBase = baseUrl == null ? "http://localhost:8080" : baseUrl.replaceAll("/+$", "");
         String endpoint = normalizedBase + "/api/inbox/quick-capture";
+        if (!isTokenConfigured()) {
+            // 不再退回派生值：没配置就明确告诉用户去配，而不是给一个「看起来能用」的串
+            return Map.of(
+                    "token", "",
+                    "configured", false,
+                    "endpointUrl", endpoint,
+                    "curlExample", "",
+                    "instruction", "未启用外部剪藏：请在服务器 .env 设置 INBOX_TOKEN（建议 32 位随机串）后重启，"
+                            + "再用 X-Inbox-Token 请求头调用；现在只能登录后在编辑器里写。"
+            );
+        }
+        String token = getEffectiveToken();
         String curl = "curl -X POST '" + endpoint + "' \\\n"
                 + "  -H 'Content-Type: application/json' \\\n"
                 + "  -H 'X-Inbox-Token: " + token + "' \\\n"
@@ -141,9 +171,10 @@ public class InboxService {
 
         return Map.of(
                 "token", token,
+                "configured", true,
                 "endpointUrl", endpoint,
                 "curlExample", curl,
-                "instruction", "可直接在 iOS 快捷指令、Raycast 或浏览器扩展中通过 POST 请求发送内容"
+                "instruction", "可直接在 iOS 快捷指令、Raycast 或浏览器扩展中通过 POST 请求发送内容；Token 只放请求头，不要用 ?token="
         );
     }
 

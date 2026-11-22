@@ -17,12 +17,51 @@ public interface NoteRepository extends JpaRepository<Note, Long>, JpaSpecificat
 
     Optional<Note> findBySlug(String slug);
 
+    /**
+     * 公开列表 / RSS 用：按状态分页取整行。
+     *
+     * <p>这里没像 sitemap 那样做投影，是因为列表要 tags（多对多，投影拿不到），
+     * 而 RSS 还要摘要兜底正文。线上已发布只有十几篇、正文合计 0.1 MB 量级，
+     * 省这一下不值得把标签单独再查一遍；真到几百篇发布量再改。
+     */
     Page<Note> findByStatus(NoteStatus status, Pageable pageable);
+
+    /**
+     * sitemap 只需要的三列：slug、更新时间、发布时间。
+     *
+     * <p>这里刻意不用 {@code findByStatus} 取实体：{@code content_md} 是 MEDIUMTEXT，
+     * 681 篇平均几 KB，而 sitemap 一条记录只用得上 slug 和时间——
+     * 为了三列把两三兆正文读进内存（还要拼成实体、级联查标签）纯属浪费。
+     *
+     * <p>接口投影而不是 {@code Object[]}：字段名写错在启动时就报，不用等到线上。
+     */
+    @Query("""
+            select n.slug as slug, n.updatedAt as updatedAt, n.publishedAt as publishedAt
+            from Note n where n.status = :status order by n.publishedAt desc
+            """)
+    List<PublishedRef> findPublishedRefs(@Param("status") NoteStatus status, Pageable pageable);
+
+    /** {@link #findPublishedRefs} 的投影视图 */
+    interface PublishedRef {
+        String getSlug();
+
+        LocalDateTime getUpdatedAt();
+
+        LocalDateTime getPublishedAt();
+    }
 
     boolean existsBySlug(String slug);
 
     /**
      * 反向链接候选查找：查找正文包含指定关键词（如 slug、标题或 wiki-link）的笔记。
+     *
+     * <p><b>为什么不用 ft_notes 那个 FULLTEXT 索引</b>：它是默认分词器建的，
+     * {@code innodb_ft_min_token_size=3}，中文整段会被当成一个「词」存进去，
+     * 线上实测 {@code MATCH(content_md) AGAINST('某个中文词')} 命中 0 条。
+     * 而且这里要的语义是「正文里出现这段 slug 字样」——子串匹配，不是按词匹配，
+     * 换成 MATCH 会漏掉 {@code [[slug]]} 这种连写。所以保留 LIKE，
+     * 代价是整库正文扫一遍：已在 {@code RateLimitConfig.PUBLIC_BACKLINKS_PATH}
+     * 按 IP 30/分钟限流，并把候选截到 30 条。
      */
     @Query("""
             select n from Note n

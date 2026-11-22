@@ -438,9 +438,7 @@ function scrollToTop() {
         <button class="to-top" type="button" @click="scrollToTop">回到顶部 ↑</button>
       </div>
       <p class="foot-legal">
-        <a class="icp" :href="profile.icp.href" target="_blank" rel="noopener noreferrer">{{
-          profile.icp.number
-        }}</a>
+        <a class="icp" :href="profile.icp.href" target="_blank" rel="noopener noreferrer">{{ profile.icp.number }}</a>
       </p>
     </footer>
   </div>

@@ -74,11 +74,19 @@ jobs:
             return 1
           }
 
+          # 跟随重定向：变量还停在旧地址（例如换成域名前的 http://<IP>）时，
+          # Caddy 会回 308，不跟随就只看到 308，看不出「地址过期」还是「站点挂了」。
+          # 注意判据仍是最终状态码 200 + body.status=up，跟随不会掩盖真实故障。
           check_health() {
-            body=$(curl -sS --max-time 15 -w '\n%{http_code}' "$BASE_URL/api/health" || true)
-            code=$(printf '%s' "$body" | tail -1)
+            body=$(curl -sS -L --max-time 15 -w '\n%{http_code} %{url_effective}' "$BASE_URL/api/health" || true)
+            tail_line=$(printf '%s' "$body" | tail -1)
+            code=${tail_line%% *}
+            effective=${tail_line#* }
             payload=$(printf '%s' "$body" | sed '$d')
             echo "  health: HTTP $code  $payload"
+            if [ "${effective%/api/health}" != "${BASE_URL%/}" ]; then
+              echo "  ⚠ 请求被重定向到 $effective —— 仓库变量 SITE_BASE_URL 可能过期（当前 ${BASE_URL}）" >&2
+            fi
             [ "$code" = "200" ] || return 1
             # 接口永远回 200，状态在 body.status 里
             printf '%s' "$payload" | grep -q '"status":"up"'
@@ -86,8 +94,8 @@ jobs:
 
           check_home() {
             # 别写 `curl ... || echo 000`：失败时 -w 已输出 000，会拼成 000000
-            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$BASE_URL/" || true)
-            [ -n "$code" ] || code=000
+            code=$(curl -sS -L --max-time 15 -o /dev/null -w '%{http_code} %{url_effective}' "$BASE_URL/" || true)
+            if [ -n "$code" ]; then code=${code%% *}; else code=000; fi
             echo "  首页: HTTP $code"
             [ "$code" = "200" ]
           }

@@ -50,9 +50,14 @@ public class AssetController {
             throw new NotFoundException("图片不存在");
         }
         Path file = storage.read(relative);
+        // 缓存 1 天而不是 7 天：图片路径是「标题式」的稳定路径，同名覆盖上传（换配图）
+        // 很常见，7 天里读者会一直看到旧图。ETag 用「大小 + 修改时间」，
+        // 浏览器过期后再来一次 304，既省流量又能及时换图。
+        String etag = "\"" + file.toFile().length() + "-" + file.toFile().lastModified() + "\"";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(AssetStorage.contentType(file)))
-                .cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic())
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePublic())
+                .eTag(etag)
                 .body(new FileSystemResource(file));
     }
 

@@ -6,7 +6,8 @@
 #
 # 可选环境变量：
 #   BACKUP_DIR    备份目录，默认 <项目>/backups
-#   BACKUP_KEEP   保留份数，默认 14
+#   BACKUP_KEEP   数据库 dump 保留份数，默认 14
+#   BACKUP_STORAGE_KEEP  图片包保留份数，默认 3（一份约 240M）
 #   DB_USER       数据库账号，默认 notes（容器模式忽略，用容器内的 MYSQL_USER）
 #   DB_NAME       数据库名，默认 notes_blog
 #   BACKUP_FROM   auto | docker | local，默认 auto
@@ -29,6 +30,7 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${BACKUP_DIR:-$ROOT/backups}"
 KEEP="${BACKUP_KEEP:-14}"
+STORAGE_KEEP="${BACKUP_STORAGE_KEEP:-3}"
 DB_USER="${DB_USER:-notes}"
 DB_NAME="${DB_NAME:-notes_blog}"
 FROM="${BACKUP_FROM:-auto}"
@@ -124,7 +126,9 @@ fi
 
 # 保留策略：每类只留最新 KEEP 份
 ls -1t "$DEST"/notes_blog_*.sql.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs rm -f
-ls -1t "$DEST"/storage_*.tar.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs rm -f
+# 图片包单独给个小额度：一份 240M，按 KEEP 份留会吃掉 3G+ 本地磁盘，
+# 而图片基本只增不改，留最近 3 份就够回滚一次误删。
+ls -1t "$DEST"/storage_*.tar.gz 2>/dev/null | tail -n +"$((STORAGE_KEEP + 1))" | xargs rm -f
 
 echo "数据库备份：${DUMP}（$(du -h "${DUMP}" | cut -f1)）"
 if [ -n "$STORAGE_TAR" ]; then

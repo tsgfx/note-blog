@@ -48,7 +48,8 @@ class InboxControllerTest {
     @Test
     @DisplayName("剪藏未经授权：未提供有效 Token 时拒绝并返回 401")
     void unauthorizedWithoutToken() throws Exception {
-        when(inboxService.isAuthorized(any(), any(), any(), any())).thenReturn(false);
+        when(inboxService.isAuthorized(any(), any(), any())).thenReturn(false);
+        when(inboxService.isTokenConfigured()).thenReturn(true);
 
         QuickCaptureRequest req = new QuickCaptureRequest("笔记内容", "iOS", List.of());
         mockMvc.perform(post("/api/inbox/quick-capture")
@@ -62,7 +63,7 @@ class InboxControllerTest {
     @Test
     @DisplayName("剪藏授权成功：校验通过并写入草稿库返回笔记元数据")
     void authorizedCaptureSuccess() throws Exception {
-        when(inboxService.isAuthorized(any(), any(), any(), any())).thenReturn(true);
+        when(inboxService.isAuthorized(any(), any(), any())).thenReturn(true);
         when(inboxService.capture(any(), anyString())).thenReturn(new QuickCaptureResponseDto(
                 55L,
                 "测试标题",

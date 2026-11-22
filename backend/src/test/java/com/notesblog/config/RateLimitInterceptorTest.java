@@ -126,6 +126,24 @@ class RateLimitInterceptorTest {
     }
 
     @Test
+    @DisplayName("公开反向链接按一条通配规则计数，换 slug 也共用额度")
+    void publicBacklinksRuleIsRateLimitedPerRule() throws Exception {
+        RateLimitInterceptor backlinksLimiter = new RateLimitInterceptor(rateLimiter,
+                Map.of(RateLimitConfig.PUBLIC_BACKLINKS_PATH,
+                        new RateLimitInterceptor.Rule(30, Duration.ofMinutes(1))));
+        HttpServletRequest req = request(DispatcherType.REQUEST);
+        when(req.getRequestURI()).thenReturn("/api/blog/posts/some-slug/backlinks");
+        when(rateLimiter.acquire(anyString(), anyInt(), any()))
+                .thenReturn(new RateLimiter.Decision(true, 0));
+
+        assertThat(backlinksLimiter.preHandle(req, response(), new Object())).isTrue();
+
+        org.mockito.ArgumentCaptor<String> keys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(rateLimiter).acquire(keys.capture(), anyInt(), any());
+        assertThat(keys.getValue()).startsWith(RateLimitConfig.PUBLIC_BACKLINKS_PATH + "|");
+    }
+
+    @Test
     @DisplayName("没有规则命中的 URI 直接放行，不计数")
     void unmatchedUriPassesThrough() throws Exception {
         HttpServletRequest req = request(DispatcherType.REQUEST);
