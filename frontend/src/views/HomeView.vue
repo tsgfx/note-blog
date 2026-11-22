@@ -10,7 +10,9 @@ const posts = ref<NoteSummary[]>([])
 const libraryReady = ref(false)
 
 const signedIn = isLoggedIn()
-const nameChars = computed(() => [...profile.name])
+/* 首屏大字是站名，名字挪到大字下面一行；三个字刚好吃原来的逐字入场动画 */
+const siteTitle = '一隅笔记'
+const titleChars = computed(() => [...siteTitle])
 const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /* ───────── 数字滚动 ─────────
@@ -239,11 +241,11 @@ function scrollToTop() {
             <span class="eyebrow-place">{{ profile.location }}</span>
           </p>
 
-          <h1 class="name" :aria-label="profile.name">
+          <h1 class="name" :aria-label="siteTitle">
             <span class="name-wrap">
               <span class="name-line">
                 <span
-                  v-for="(ch, index) in nameChars"
+                  v-for="(ch, index) in titleChars"
                   :key="index"
                   class="char"
                   aria-hidden="true"
@@ -260,7 +262,9 @@ function scrollToTop() {
           </h1>
 
           <p class="latin">
-            {{ profile.latin }}<span class="latin-dot" aria-hidden="true">·</span>{{ profile.handle }}
+            <span class="latin-name">{{ profile.name }}</span>
+            <span class="latin-dot" aria-hidden="true">·</span>{{ profile.latin }}<span class="latin-dot" aria-hidden="true">·</span
+            >{{ profile.handle }}
           </p>
           <p class="role">{{ profile.role }}</p>
           <p class="intro">{{ profile.intro }}</p>
@@ -460,6 +464,8 @@ function scrollToTop() {
   min-height: calc(100vh - 56px);
   padding: var(--space-7) 0 var(--space-6);
   isolation: isolate;
+  /* 网格纱刻意比视口宽，旧版没裁，整页因此横向多出 138px 可滚。裁在 hero 边界上。 */
+  overflow-x: clip;
 }
 
 /* 极细网格：纸面下的工程感。用径向遮罩淡出，避免变成「画了格子」。
@@ -722,6 +728,14 @@ function scrollToTop() {
 .latin-dot {
   margin: 0 var(--space-2);
   color: var(--hairline);
+}
+
+/* 名字从大字位置退到这里：比 latin 稍大、用衬线体，读起来像句子里的人名 */
+.latin-name {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
 }
 
 /* 定位：字距从散到拢，入场时有一种「对上焦」的感觉 */
