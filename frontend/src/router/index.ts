@@ -24,7 +24,7 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: () => import('../views/HomeView.vue'),
-      meta: { title: '首页', public: true },
+      meta: { title: '', public: true },
     },
     {
       path: '/ask',
