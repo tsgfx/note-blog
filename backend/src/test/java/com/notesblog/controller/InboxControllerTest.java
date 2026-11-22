@@ -55,7 +55,7 @@ class InboxControllerTest {
         mockMvc.perform(post("/api/inbox/quick-capture")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("未授权")));
     }
