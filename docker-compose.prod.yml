@@ -46,6 +46,10 @@ services:
       # 2G 小机器上 InnoDB 别按默认值吃内存，压到 256M 给 JVM 留空间
       - --innodb-buffer-pool-size=256M
       - --max-connections=80
+      # 慢查询落盘，1 秒起记。默认是关的，出问题只能靠猜；文件写在数据目录里，
+      # 10 篇/天的写入量下增长可以忽略（当前整库 40MB）。
+      - --slow-query-log=1
+      - --long-query-time=1
     volumes:
       - mysql-data:/var/lib/mysql
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
