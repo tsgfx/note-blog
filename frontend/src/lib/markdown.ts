@@ -31,15 +31,20 @@ md.use(katexPlugin, {
 const LANGUAGE_ALIAS: Record<string, string> = { shell: 'bash', sh: 'bash', zsh: 'bash', console: 'bash' }
 
 /**
- * 正文图片懒加载。
+ * 正文图片懒加载与来源隐藏。
  *
  * <p>库里有 2236 张图、共 256MB，长笔记常带十几张截图。默认行为是一进页面就全部下载，
  * 首屏要等一堆根本没滚到的图。`loading="lazy"` 让浏览器只取视口附近的，
  * `decoding="async"` 避免解码阻塞排版。
+ *
+ * <p>`referrerpolicy="no-referrer"`：681 篇里有 313 篇引的是站外图床，
+ * 默认策略会把「读者从哪篇文章点进来」写进对方的 Referer 头，
+ * 等于每张外链配图都在替对方做一次来源统计。图片不需要这个信息。
  */
 md.renderer.rules.image = (tokens, index, options, _env, self) => {
   tokens[index].attrSet('loading', 'lazy')
   tokens[index].attrSet('decoding', 'async')
+  tokens[index].attrSet('referrerpolicy', 'no-referrer')
   return self.renderToken(tokens, index, options)
 }
 

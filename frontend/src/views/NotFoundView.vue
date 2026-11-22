@@ -1,5 +1,25 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+
+/**
+ * 未知地址返回的是 200 + SPA 外壳（nginx try_files 回退），对搜索引擎就是一个
+ * 「内容很薄的有效页」。真要回 404 状态码，得让服务端先认出 slug 是否存在，
+ * 代价远大于收益；这里加 noindex，至少不让它们被收录。
+ */
+let robotsMeta: HTMLMetaElement | null = null
+
+onMounted(() => {
+  robotsMeta = document.createElement('meta')
+  robotsMeta.setAttribute('name', 'robots')
+  robotsMeta.setAttribute('content', 'noindex')
+  document.head.appendChild(robotsMeta)
+})
+
+onBeforeUnmount(() => {
+  robotsMeta?.remove()
+  robotsMeta = null
+})
 </script>
 
 <template>
