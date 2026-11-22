@@ -5,7 +5,7 @@
  * 「已经在浏览器里的人在看的页面」：标签页标题、历史记录、以及会读 DOM 的抓取器。
  * 真正的首屏 OG 卡片要靠预渲染，这个是顺手的改进而不是替代方案。
  */
-const SITE = '一隅'
+const SITE = '一隅笔记'
 
 function setMeta(selector: string, attr: 'name' | 'property', key: string, value: string) {
   let el = document.head.querySelector<HTMLMetaElement>(selector)

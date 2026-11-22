@@ -127,7 +127,7 @@ public class NotificationService {
      * 飞书、钉钉、企业微信、Bark 与通用 Webhook 一并兼容。
      */
     public String buildPayloadJson(String postTitle, String articleUrl, String commentContent, String clientIp) {
-        String summary = String.format("【一隅 · 新评论提醒】\n文章：《%s》\n内容：%s\n链接：%s",
+        String summary = String.format("【一隅笔记 · 新评论提醒】\n文章：《%s》\n内容：%s\n链接：%s",
                 postTitle, commentContent, articleUrl);
 
         try {

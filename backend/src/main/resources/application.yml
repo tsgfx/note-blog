@@ -10,7 +10,7 @@ assets:
 site:
   # 博客对外地址，用于 RSS 中的链接；生产环境改为真实域名
   base-url: ${SITE_BASE_URL:http://localhost:5173}
-  title: ${SITE_TITLE:一隅}
+  title: ${SITE_TITLE:一隅笔记}
 
 spring:
   mvc:
@@ -43,6 +43,9 @@ spring:
       # 连接最长活 25 分钟、空闲 5 分钟回收：比 MySQL 的 wait_timeout 短，
       # 避免拿到一个已被服务端断开、首次查询才报错的连接。
       max-lifetime: 1500000
+      # 不设 minimum-idle 时 Hikari 会当成 = maximum-pool-size，池子变定长，
+      # idle-timeout 随之失效（启动日志会提醒这一点）。留 3 条常驻、其余闲时回收。
+      minimum-idle: 3
       idle-timeout: 300000
       keepalive-time: 120000
   # 优雅停机：收到 SIGTERM 后先不再接新请求，再给在途请求（含 SSE）留时间写完

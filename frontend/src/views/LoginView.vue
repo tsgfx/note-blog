@@ -50,7 +50,7 @@ async function submit() {
 <template>
   <section class="login">
     <div class="sheet">
-      <p class="brand">一隅</p>
+      <p class="brand">一隅笔记</p>
       <h1 class="login-title">管理员登录</h1>
       <p class="page-note">{{ hint }}</p>
 

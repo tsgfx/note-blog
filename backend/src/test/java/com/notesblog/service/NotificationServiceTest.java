@@ -42,7 +42,7 @@ class NotificationServiceTest {
         String json = service.buildPayloadJson("文章一", "https://notes.example.com/blog/p1", "太精彩了", "1.1.1.1");
         assertThat(json).contains("\"msg_type\":\"text\"");
         assertThat(json).contains("\"content\":{\"text\":");
-        assertThat(json).contains("【一隅 · 新评论提醒】");
+        assertThat(json).contains("【一隅笔记 · 新评论提醒】");
         assertThat(json).contains("《文章一》");
     }
 
