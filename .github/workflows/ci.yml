@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 连推几个提交时（改一处推一次很常见），前一次的整套 job 已经没人等它了，
+# 但 default 会让它们全部跑完。同一分支只保留最新一次，省 runner 分钟数，
+# 也让「红」永远指向当前 HEAD。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   backend:
     name: 后端测试
