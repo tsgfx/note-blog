@@ -263,8 +263,8 @@ function scrollToTop() {
 
           <p class="latin">
             <span class="latin-name">{{ profile.name }}</span>
-            <span class="latin-dot" aria-hidden="true">·</span>{{ profile.latin }}<span class="latin-dot" aria-hidden="true">·</span
-            >{{ profile.handle }}
+            <span class="latin-dot" aria-hidden="true">·</span>{{ profile.latin
+            }}<span class="latin-dot" aria-hidden="true">·</span>{{ profile.handle }}
           </p>
           <p class="role">{{ profile.role }}</p>
           <p class="intro">{{ profile.intro }}</p>
