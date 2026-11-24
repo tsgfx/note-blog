@@ -120,6 +120,8 @@ export function listNotes(
     tag?: string[]
     /** updated（默认）/ views（按阅读量）/ published（按发布时间） */
     sort?: 'updated' | 'views' | 'published'
+    /** 只看待重发：已发布但发布后又改过 */
+    stale?: boolean
     page?: number
     size?: number
   } = {},

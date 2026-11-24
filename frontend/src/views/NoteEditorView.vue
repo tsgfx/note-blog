@@ -20,7 +20,15 @@ import TableHeader from '@tiptap/extension-table-header'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { Markdown } from 'tiptap-markdown'
-import { createNote, generateNoteMeta, getNote, updateNote, uploadImage, type NoteInput } from '../api/notes'
+import {
+  createNote,
+  generateNoteMeta,
+  getNote,
+  publishNote,
+  updateNote,
+  uploadImage,
+  type NoteInput,
+} from '../api/notes'
 import { confirmAction, notify } from '../lib/feedback'
 import { renderMarkdown } from '../lib/markdown'
 
@@ -63,6 +71,10 @@ const tagsText = ref('')
 const contentMd = ref('')
 const savedSnapshot = ref('')
 const finished = ref(false)
+/** 新建笔记保存后的 slug：保存不再跳走，路由要从 /editor/new 换成 /editor/<slug> */
+const slug = ref('')
+/** 草稿暂存的时刻，只用来在状态条上说明「已暂存」，不参与持久化 */
+const draftSavedAt = ref('')
 const bodyEl = ref<HTMLTextAreaElement>()
 const previewEl = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
@@ -288,6 +300,10 @@ function createEditor() {
 
 onBeforeUnmount(() => {
   window.clearTimeout(syncTimer)
+  window.clearInterval(draftTimer)
+  // 最后 10 秒内的改动也留下：悄悄关标签页时至少还有本机草稿
+  flushMarkdown()
+  writeDraft()
   editor.value?.destroy()
 })
 
@@ -296,6 +312,79 @@ function fillFrom(note: { title: string; summary?: string; tags: string[]; conte
   summary.value = note.summary || ''
   tagsText.value = note.tags.join(', ')
   contentMd.value = note.contentMd
+}
+
+/* ───────── 草稿暂存：每 10 秒把改动写进 localStorage ─────────
+ * 编辑器没有自动保存，浏览器崩了/手滑关标签就全丢。这里只在本机留一份，
+ * 重新打开同一个笔记（或新建页）时问一句要不要恢复，服务端不受影响。 */
+const DRAFT_KEY = 'note-editor-draft-v1'
+let draftTimer = 0
+
+function draftId(): string {
+  return slug.value || 'new'
+}
+
+function writeDraft() {
+  if (!dirty.value) return
+  try {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        id: draftId(),
+        title: title.value,
+        summary: summary.value,
+        tagsText: tagsText.value,
+        contentMd: contentMd.value,
+        at: new Date().toISOString(),
+      }),
+    )
+    draftSavedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    // 私密模式或配额满：暂存只是兜底，写不进去不影响继续编辑
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // 同上
+  }
+  draftSavedAt.value = ''
+}
+
+async function restoreDraftIfAny() {
+  let draft: { id: string; title: string; summary: string; tagsText: string; contentMd: string; at: string } | null
+  try {
+    draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
+  } catch {
+    draft = null
+  }
+  if (!draft || draft.id !== draftId()) return
+  const current = JSON.stringify([title.value, summary.value, tagsText.value, contentMd.value])
+  const kept = JSON.stringify([draft.title, draft.summary, draft.tagsText, draft.contentMd])
+  if (current === kept) {
+    clearDraft()
+    return
+  }
+  const at = new Date(draft.at).toLocaleString('zh-CN', { hour12: false })
+  const restore = await confirmAction({
+    title: '恢复上次没保存完的草稿？',
+    message: `本机存着一份 ${at} 的草稿，和服务器上的版本不一样。`,
+    confirmText: '恢复草稿',
+    cancelText: '用服务器的版本',
+    danger: false,
+  })
+  if (!restore) {
+    clearDraft()
+    return
+  }
+  title.value = draft.title
+  summary.value = draft.summary
+  tagsText.value = draft.tagsText
+  contentMd.value = draft.contentMd
+  if (mode.value === 'rich') editor.value?.commands.setContent(contentMd.value, false)
+  notify('已恢复草稿，记得保存')
 }
 
 onMounted(async () => {
@@ -308,6 +397,7 @@ onMounted(async () => {
     try {
       const note = await getNote(String(route.params.slug))
       noteId.value = note.id
+      slug.value = note.slug
       fillFrom(note)
       savedSnapshot.value = snapshot.value
     } catch (e) {
@@ -318,6 +408,9 @@ onMounted(async () => {
   }
   // 笔记内容就位后再建编辑器，避免 setContent 打架
   createEditor()
+  // 草稿要在编辑器建好之后恢复（恢复时要 setContent）
+  await restoreDraftIfAny()
+  draftTimer = window.setInterval(writeDraft, 10_000)
 })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
@@ -329,7 +422,7 @@ function parseTags(): string[] {
     .filter(Boolean)
 }
 
-async function save() {
+async function save(publishAfter = false) {
   if (!title.value.trim()) {
     notify('标题不能为空', 'error')
     return
@@ -350,10 +443,25 @@ async function save() {
   }
   try {
     const note = isNew.value ? await createNote(input) : await updateNote(noteId.value!, input)
-    finished.value = true
-    // 摘要/标签留白时让服务端自动补：等生成完再跳详情页，进去就是全的。
-    // 生成失败不拦着保存结果，只是提示一句。
+    noteId.value = note.id
+    slug.value = note.slug
+    savedSnapshot.value = snapshot.value
+    clearDraft()
+    // 新建的笔记先把自己变成一个真实的路由，刷新或返回时才不会回到空白页
+    if (isNew.value) await router.replace(`/editor/${note.slug}`)
+
+    if (publishAfter) {
+      await publishNote(note.id)
+      finished.value = true
+      notify('已保存并发布')
+      router.push(`/notes/${note.slug}`)
+      return
+    }
+
+    // 保存后留在原地：以前一保存就跳详情页，接着改还得再点回来。
+    // 想走直接点「取消」或面包屑即可。
     if (!input.summary || !input.tags.length) {
+      // 摘要/标签留白时让服务端自动补；生成失败不拦着保存结果，只是提示一句
       metaWorking.value = true
       try {
         await generateNoteMeta(note.id)
@@ -369,7 +477,6 @@ async function save() {
     } else {
       notify('已保存')
     }
-    router.push(`/notes/${note.slug}`)
   } catch (e) {
     notify(e instanceof Error ? e.message : String(e), 'error')
   } finally {
@@ -377,10 +484,15 @@ async function save() {
   }
 }
 
+/** 一键走完「保存 + 发布 + 去文章页」，省掉保存、回列表、点发布、再点详情四次点击 */
+function saveAndPublish() {
+  void save(true)
+}
+
 function onKeydown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
     event.preventDefault()
-    save()
+    void save(event.shiftKey)
   }
 }
 
@@ -388,13 +500,16 @@ onBeforeRouteLeave(async () => {
   // 富文本的防抖同步可能还压着 300ms，离开前先冲一遍
   flushMarkdown()
   if (finished.value || !dirty.value) return true
-  return confirmAction({
+  const discard = await confirmAction({
     title: '放弃未保存的修改？',
-    message: '离开后，这次编辑的内容不会保存。',
+    message: '离开后，这次编辑的内容不会保存（本机草稿也会清掉）。',
     confirmText: '放弃修改',
     cancelText: '继续编辑',
     danger: true,
   })
+  // 明确选择放弃才清草稿；停在页面上时草稿要留着
+  if (discard) clearDraft()
+  return discard
 })
 
 /* ───────── 图片上传：选文件 / 粘贴 / 拖拽，两条模式共用 ───────── */
@@ -699,7 +814,7 @@ function isDisabled(tool: ToolDef): boolean {
           <span v-if="saving && metaWorking">生成摘要标签中…</span>
           <span v-else-if="saving">保存中…</span>
           <span v-else-if="uploading">正在上传图片…</span>
-          <span v-else-if="dirty">有未保存的修改</span>
+          <span v-else-if="dirty">有未保存的修改{{ draftSavedAt ? `（本机暂存 ${draftSavedAt}）` : '' }}</span>
           <span v-else-if="!isNew">已与服务器同步</span>
           <span v-else>新笔记</span>
           <span class="bar-count"> · {{ wordCount }} 字</span>
@@ -731,8 +846,23 @@ function isDisabled(tool: ToolDef): boolean {
             {{ uploading ? '上传中' : '插入图片' }}
           </button>
           <button class="btn btn-text" type="button" @click="router.back()">取消</button>
-          <button class="btn btn-primary btn-sm" type="button" :disabled="saving" @click="save">
-            {{ saving ? (metaWorking ? '生成中' : '保存中') : '保存' }}
+          <button
+            class="btn btn-primary btn-sm"
+            type="button"
+            :disabled="saving"
+            title="保存后留在本页（⌘/Ctrl+S）"
+            @click="save()"
+          >
+            {{ saving && !metaWorking ? '保存中…' : metaWorking ? '生成中' : '保存' }}
+          </button>
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            :disabled="saving"
+            title="保存、发布并打开文章页（⌘/Ctrl+Shift+S）"
+            @click="saveAndPublish"
+          >
+            保存并发布
           </button>
         </div>
         <input
@@ -1214,6 +1344,17 @@ function isDisabled(tool: ToolDef): boolean {
 
   .meta-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  /* 模式切换 + 插入图片 + 取消/保存/保存并发布 在 390px 里排不下（约 447px），
+     让它们自己折行，而不是把整页顶出一条横向滚动 */
+  .bar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    width: 100%;
   }
 }
 </style>

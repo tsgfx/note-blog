@@ -31,6 +31,25 @@ const signedIn = computed(() => {
 /** 顶栏在滚动后才出现分隔线与投影，静止时保持无边界，阅读页更安静 */
 const scrolled = ref(false)
 
+/** 手机端「更多入口」下拉：点完一项要收起，不然会一直挡着页面 */
+const menuEl = ref<HTMLDetailsElement>()
+
+function closeMenu() {
+  if (menuEl.value) menuEl.value.open = false
+}
+
+/** 菜单里的「退出」：先收起下拉，再走退出流程 */
+function signOutFromMenu() {
+  closeMenu()
+  signOut()
+}
+
+/** 菜单里的「切换主题」：手机上顶栏装不下这颗图标，收进下拉 */
+function toggleThemeFromMenu() {
+  closeMenu()
+  toggleTheme()
+}
+
 function onScroll() {
   scrolled.value = window.scrollY > 6
 }
@@ -113,12 +132,12 @@ function signOut() {
           >
             <span class="lightning-icon" aria-hidden="true">⚡</span> 闪念
           </button>
-          <RouterLink class="btn btn-ghost btn-sm" to="/editor/new">写笔记</RouterLink>
-          <RouterLink class="btn-text-link" to="/admin/comments">评论</RouterLink>
-          <RouterLink class="btn-text-link" to="/admin/audit">操作日志</RouterLink>
-          <RouterLink class="btn-text-link" to="/settings">设置</RouterLink>
+          <RouterLink class="btn btn-ghost btn-sm topbar-write" to="/editor/new">写笔记</RouterLink>
+          <RouterLink class="btn-text-link nav-secondary" to="/admin/comments">评论</RouterLink>
+          <RouterLink class="btn-text-link nav-secondary" to="/admin/audit">操作日志</RouterLink>
+          <RouterLink class="btn-text-link nav-secondary" to="/settings">设置</RouterLink>
           <button
-            class="btn-text-link icon-link"
+            class="btn-text-link icon-link theme-toggle"
             type="button"
             :aria-label="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"
             :title="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"
@@ -134,7 +153,19 @@ function signOut() {
               <path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z" />
             </svg>
           </button>
-          <button class="btn-text-link" type="button" @click="signOut">退出</button>
+          <button class="btn-text-link nav-secondary" type="button" @click="signOut">退出</button>
+          <!-- 手机上顶栏装不下 7 个入口，会把「评论/日志/设置」挤出屏幕；收进这一颗 -->
+          <details ref="menuEl" class="topbar-menu">
+            <summary aria-label="更多入口" title="更多入口">☰</summary>
+            <div class="topbar-menu-panel">
+              <RouterLink to="/editor/new" @click="closeMenu">写笔记</RouterLink>
+              <button type="button" @click="toggleThemeFromMenu">切换主题</button>
+              <RouterLink to="/admin/comments" @click="closeMenu">评论</RouterLink>
+              <RouterLink to="/admin/audit" @click="closeMenu">操作日志</RouterLink>
+              <RouterLink to="/settings" @click="closeMenu">设置</RouterLink>
+              <button type="button" @click="signOutFromMenu">退出</button>
+            </div>
+          </details>
         </template>
         <template v-else>
           <!-- 游客也能问答（每日有限次）。放在这里而不是只在登录后显示，
@@ -149,7 +180,7 @@ function signOut() {
             <span class="sparkle" aria-hidden="true">✦</span> 问答
           </button>
           <button
-            class="btn-text-link icon-link"
+            class="btn-text-link icon-link theme-toggle"
             type="button"
             :aria-label="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"
             :title="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"
@@ -261,6 +292,85 @@ function signOut() {
   gap: var(--space-5);
 }
 
+/* 手机端「更多入口」：评论/操作日志/设置/退出收进这一颗，顶栏不再横向滚动 */
+.topbar-menu {
+  display: none;
+  position: relative;
+}
+
+.topbar-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.topbar-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.topbar-menu[open] summary,
+.topbar-menu summary:hover {
+  background: var(--pen-soft);
+  color: var(--pen);
+}
+
+.topbar-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.topbar-menu-panel a,
+.topbar-menu-panel button {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.topbar-menu-panel a:hover,
+.topbar-menu-panel button:hover {
+  background: var(--pen-soft);
+  color: var(--pen);
+}
+
+@media (max-width: 760px) {
+  /* 七个入口塞不进 390px：次要点收进 ☰，顶栏不再横向滚动 */
+  .nav-secondary {
+    display: none;
+  }
+
+  .topbar-menu {
+    display: block;
+  }
+
+  .topbar-actions {
+    gap: var(--space-3);
+  }
+}
+
 .btn-quick-capture {
   display: inline-flex;
   align-items: center;
@@ -280,7 +390,37 @@ function signOut() {
   display: none;
 }
 
+/* 360px 这类更窄的屏，站名 + 导航 + 问答 + 写笔记 仍然差 30px 左右；
+   写笔记在 ☰ 面板里也有入口，所以窄屏只在顶栏省掉它 */
+@media (max-width: 420px) {
+  .topbar-write {
+    display: none;
+  }
+}
+
 @media (max-width: 760px) {
+  /* 闪念在手机上有右下角的悬浮按钮，顶栏这一颗是重复的；放在这里是因为
+     .btn-quick-capture 的基础规则在本文件更靠后，靠前写会被它压过 */
+  .btn-quick-capture {
+    display: none;
+  }
+
+  /* 主题切换在手机上进 ☰ 面板：390px 的顶栏要同时放下站名、导航、问答、写笔记 */
+  .theme-toggle {
+    display: none;
+  }
+
+  /* 窄屏里 flex 会把站名与导航压到比文字还窄，两个汉字的标签就竖排了 */
+  .topbar {
+    gap: var(--space-4);
+  }
+
+  .mark,
+  .nav a {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .mobile-capture-fab {
     position: fixed;
     right: 18px;

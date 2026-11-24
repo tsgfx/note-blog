@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -76,6 +77,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(404, "接口不存在：" + e.getResourcePath()));
+    }
+
+        /**
+     * 方法和接口对不上，例如用 GET 打只接受 POST 的 {@code /api/blog/search}。
+     *
+     * <p>Spring 会抛 {@link HttpRequestMethodNotSupportedException}，落到兜底就变成 500，
+     * 于是「调用方用错了方法」看起来像「服务器坏了」；这里明确回 405 并给出可用方法。
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException e) {
+        String allowed = e.getSupportedMethods() == null ? ""
+                : "，请改用 " + String.join("/", e.getSupportedMethods());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error(405, "该接口不支持 " + e.getMethod() + " 方法" + allowed));
     }
 
     @ExceptionHandler(Exception.class)

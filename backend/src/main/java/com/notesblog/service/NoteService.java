@@ -74,9 +74,29 @@ public class NoteService {
      */
     public Page<NoteSummaryDto> list(
             NoteStatus status, String path, String keyword, List<String> tags, Pageable pageable) {
+        return list(status, path, keyword, tags, false, pageable);
+    }
+
+    /**
+     * 同上，另加「只看待重发」筛选。
+     *
+     * <p>待重发 = 已发布、但发布后又改过（{@code hasUnpublishedEdits}）。列表页要给这个状态
+     * 单独一个入口：否则这些笔记混在 PUBLISHED 里，行按钮只能显示「下线」，
+     * 读者看到的其实还是旧内容，管理员很难发现。
+     */
+    public Page<NoteSummaryDto> list(
+            NoteStatus status,
+            String path,
+            String keyword,
+            List<String> tags,
+            boolean staleOnly,
+            Pageable pageable) {
         Specification<Note> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (status != null) {
+            if (staleOnly) {
+                predicates.add(cb.equal(root.get("status"), NoteStatus.PUBLISHED));
+                predicates.add(cb.isTrue(root.get("hasUnpublishedEdits")));
+            } else if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
             }
             if (path != null && !path.isBlank()) {

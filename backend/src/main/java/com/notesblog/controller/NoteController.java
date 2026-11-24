@@ -62,6 +62,7 @@ public class NoteController {
             @RequestParam(required = false) String library,
             @RequestParam(required = false, name = "q") String keyword,
             @RequestParam(required = false) List<String> tag,
+            @RequestParam(required = false, defaultValue = "false") boolean stale,
             @RequestParam(defaultValue = "updated") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -71,7 +72,7 @@ public class NoteController {
         Pageable pageable = PageRequest.of(safePage, safeSize, adminSort(sort));
         // library 是 path 的旧名字（只支持第一段），保留是为了旧的链接和书签不断
         String scope = (path != null && !path.isBlank()) ? path : library;
-        return ApiResponse.ok(noteService.list(status, scope, keyword, tag, pageable));
+        return ApiResponse.ok(noteService.list(status, scope, keyword, tag, stale, pageable));
     }
 
     /**

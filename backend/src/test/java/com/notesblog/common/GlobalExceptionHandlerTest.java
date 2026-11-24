@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -39,5 +40,17 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getCode()).isEqualTo(500);
         // 内部细节不能透给前端
         assertThat(response.getBody().getMessage()).doesNotContain("boom");
+    }
+
+    @Test
+    @DisplayName("方法不对返回 405，并告诉调用方该用什么方法")
+    void methodNotSupportedIsNotInternalError() {
+        var response = handler.handleMethodNotSupported(
+                new HttpRequestMethodNotSupportedException("GET", java.util.List.of("POST")));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(405);
+        assertThat(response.getBody().getMessage()).contains("GET").contains("POST");
     }
 }

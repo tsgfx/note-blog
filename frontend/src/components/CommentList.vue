@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { createComment, listComments, type Comment } from '../api/comments'
 
 const props = defineProps<{ slug: string }>()
+/** 条数报给调用方：文章页顶部的「评论」锚点要显示它，读者才知道下面有人聊过 */
+const emit = defineEmits<{ total: [number] }>()
 
 const comments = ref<Comment[]>([])
 const total = ref(0)
@@ -40,6 +42,7 @@ async function load(target = 0) {
     const result = await listComments(props.slug, target, 20)
     comments.value = result.content
     total.value = result.totalElements
+    emit('total', result.totalElements)
     page.value = result.number
     totalPages.value = result.totalPages
   } catch (e) {
@@ -76,7 +79,7 @@ onMounted(() => load(0))
 </script>
 
 <template>
-  <section class="comments" aria-label="评论">
+  <section id="comments" class="comments" aria-label="评论">
     <header class="comments-head">
       <h2 class="comments-title">
         评论<span v-if="total" class="comments-count">{{ total }}</span>
@@ -110,7 +113,11 @@ onMounted(() => load(0))
     </form>
 
     <p v-if="loading" class="comments-note">加载中…</p>
-    <p v-else-if="error" class="comments-note">{{ error }}</p>
+    <!-- 失败要说清是「加载失败」而不是「没有评论」，并给一条回去的路 -->
+    <p v-else-if="error" class="comments-note comments-error">
+      {{ error }}
+      <button type="button" class="btn btn-text" @click="load(page)">重试</button>
+    </p>
     <p v-else-if="!comments.length" class="comments-note">还没有评论。第一条留给你。</p>
 
     <ol v-else class="comment-list">

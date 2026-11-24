@@ -2,6 +2,7 @@ package com.notesblog.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -128,9 +129,27 @@ class NoteControllerTest {
     }
 
     @Test
+    @DisplayName("待重发筛选透传成 stale=true，且不再按 status 过滤")
+    void staleFilterIsPassedThrough() throws Exception {
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        mockMvc.perform(get("/api/notes?stale=true").header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(noteService).list(
+                org.mockito.ArgumentMatchers.isNull(),
+                any(),
+                any(),
+                any(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any());
+    }
+
+    @Test
     @DisplayName("正常列表返回统一响应体")
     void listReturnsApiResponse() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         mockMvc.perform(get("/api/notes").header("Authorization", bearer()))
@@ -141,7 +160,7 @@ class NoteControllerTest {
     @Test
     @DisplayName("status / library / q 三个筛选条件透传到 service")
     void filtersArePassedThrough() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         // 这里故意用不带转义的库名：MockMvc 不会对查询串做 URL 解码，
@@ -155,13 +174,14 @@ class NoteControllerTest {
                 org.mockito.ArgumentMatchers.eq("docs"),
                 org.mockito.ArgumentMatchers.eq("ajax"),
                 any(),
+                org.mockito.ArgumentMatchers.eq(false),
                 any());
     }
 
     @Test
     @DisplayName("page=-1 / size=0 不抛出 500")
     void invalidPagingFallsBackToDefaults() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         mockMvc.perform(get("/api/notes?page=-1&size=0").header("Authorization", bearer()))
@@ -171,7 +191,7 @@ class NoteControllerTest {
     @Test
     @DisplayName("sort=views 按阅读量降序；默认按最近改动")
     void sortParamMapsToOrder() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         mockMvc.perform(get("/api/notes?sort=views").header("Authorization", bearer()))
@@ -179,14 +199,14 @@ class NoteControllerTest {
 
         org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> captor =
                 org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-        org.mockito.Mockito.verify(noteService).list(any(), any(), any(), any(), captor.capture());
+        org.mockito.Mockito.verify(noteService).list(any(), any(), any(), any(), anyBoolean(), captor.capture());
         assertThat(captor.getValue().getSort().getOrderFor("viewCount")).isNotNull();
         assertThat(captor.getValue().getSort().getOrderFor("viewCount").isDescending()).isTrue();
 
         mockMvc.perform(get("/api/notes").header("Authorization", bearer()))
                 .andExpect(status().isOk());
         org.mockito.Mockito.verify(noteService,
-                org.mockito.Mockito.atLeast(2)).list(any(), any(), any(), any(), captor.capture());
+                org.mockito.Mockito.atLeast(2)).list(any(), any(), any(), any(), anyBoolean(), captor.capture());
         assertThat(captor.getAllValues().get(1).getSort().getOrderFor("updatedAt")).isNotNull();
     }
 
@@ -266,7 +286,7 @@ class NoteControllerTest {
     @Test
     @DisplayName("多标签按 AND 传给服务层（同时带这两个标签才算命中）")
     void multipleTagsPassedThrough() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         mockMvc.perform(get("/api/notes?tag=链表&tag=力扣").header("Authorization", bearer()))
@@ -277,6 +297,7 @@ class NoteControllerTest {
                 any(),
                 any(),
                 org.mockito.ArgumentMatchers.eq(java.util.List.of("链表", "力扣")),
+                org.mockito.ArgumentMatchers.eq(false),
                 any());
     }
 
@@ -298,7 +319,7 @@ class NoteControllerTest {
     @Test
     @DisplayName("path 参数优先于旧名 library，两者都支持（旧书签不断）")
     void pathParamWins() throws Exception {
-        when(noteService.list(any(), any(), any(), any(), any()))
+        when(noteService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         // 用 param() 而不是手写查询串：手写的 %2B%2F 不会被 MockMvc 解码，
@@ -314,6 +335,7 @@ class NoteControllerTest {
                 org.mockito.ArgumentMatchers.eq("c++/项目A"),
                 any(),
                 any(),
+                anyBoolean(),
                 any());
     }
 }

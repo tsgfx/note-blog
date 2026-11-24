@@ -289,6 +289,8 @@ onMounted(() => {
             aria-label="搜索公开文章"
             @keydown.enter.prevent="applySearch"
           />
+          <!-- 只有一个放大镜图标时，读者不知道回车就能搜；给一颗明确的按钮 -->
+          <button type="submit" class="search-submit">搜索</button>
         </form>
 
         <a class="feed" href="/api/blog/rss.xml" target="_blank" rel="noopener">
@@ -554,6 +556,23 @@ onMounted(() => {
 
 .search-input::placeholder {
   color: var(--ink-3);
+}
+
+.search-submit {
+  flex-shrink: 0;
+  padding: 2px 0 2px 10px;
+  border: none;
+  border-left: 1px solid var(--hairline);
+  background: none;
+  color: var(--pen);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-soft);
+}
+
+.search-submit:hover {
+  color: var(--ink);
 }
 
 .tag-cloud {
@@ -903,11 +922,14 @@ onMounted(() => {
     font-size: 26px;
   }
 
+  /* 手机上把搜索框撑满一行：90px 只能看到两三个字，输完就看不到自己打了什么 */
   .search-input {
-    width: 90px;
+    flex: 1;
+    min-width: 0;
+    width: auto;
   }
   .search-input:focus {
-    width: 130px;
+    width: auto;
   }
 }
 </style>

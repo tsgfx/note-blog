@@ -994,7 +994,8 @@ kbd {
   .topbar {
     gap: var(--space-4);
     padding: 0 var(--space-4);
-    overflow-x: auto;
+    /* 次要点已收进「☰」菜单，这里不再横向滚动：滚动会让人以为顶栏还有更多 */
+    overflow-x: visible;
   }
 
   .nav {

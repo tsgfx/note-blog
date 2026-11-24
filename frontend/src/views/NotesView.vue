@@ -94,7 +94,12 @@ const loading = ref(true)
 const error = ref('')
 /** 当前选中的目录路径；空字符串 = 全部。第一段就是原来的「库」 */
 const activePath = ref<string>('')
-const status = ref<'ALL' | 'PUBLISHED' | 'DRAFT'>('ALL')
+const status = ref<'ALL' | 'PUBLISHED' | 'DRAFT' | 'STALE'>('ALL')
+
+/** 「待重发」不是 status 枚举值，而是 stale=true 的独立筛选，状态参数要留空 */
+function statusParam(): string | undefined {
+  return status.value === 'ALL' || status.value === 'STALE' ? undefined : status.value
+}
 /**
  * 列表排序。默认按最近改动（日常管理最常用），
  * 「按阅读量」是作者回看「哪几篇真的有人读」时的入口。
@@ -184,7 +189,8 @@ async function load(target = 0) {
   error.value = ''
   try {
     const result = await listNotes({
-      status: status.value === 'ALL' ? undefined : status.value,
+      status: statusParam(),
+      stale: status.value === 'STALE' ? true : undefined,
       path: activePath.value || undefined,
       q: query.value.trim() || undefined,
       tag: activeTags.value.length ? activeTags.value : undefined,
@@ -211,7 +217,7 @@ async function load(target = 0) {
 async function loadFolders() {
   try {
     folders.value = await listFolders({
-      status: status.value === 'ALL' ? undefined : status.value,
+      status: statusParam(),
     })
   } catch {
     // 侧边栏统计失败不该挡着看列表，静默降级成空树
@@ -226,7 +232,7 @@ async function loadFolders() {
 async function loadTags() {
   try {
     tags.value = await listTags({
-      status: status.value === 'ALL' ? undefined : status.value,
+      status: statusParam(),
       path: activePath.value || undefined,
     })
     // 切库后原来选中的标签可能已经不存在了，清掉避免空结果
@@ -302,7 +308,7 @@ function syncPathQuery() {
   void router.replace({ query: next })
 }
 
-function pickStatus(next: 'ALL' | 'PUBLISHED' | 'DRAFT') {
+function pickStatus(next: 'ALL' | 'PUBLISHED' | 'DRAFT' | 'STALE') {
   status.value = next
   clearSelection()
   load(0)
@@ -369,6 +375,13 @@ watch(query, () => {
 function onKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
+
+  // 弹窗层先行：预检对话框开着时，Esc 该关它，而不是把手里的勾选清空
+  if (event.key === 'Escape' && preflightOpen.value) {
+    event.preventDefault()
+    preflightOpen.value = false
+    return
+  }
 
   if (typing) {
     if (event.key === 'Escape') {
@@ -553,11 +566,48 @@ function confirmPreflight() {
   runBatch('publish', ids)
 }
 
+/** 单篇的发布/重新发布/下线：以前点了立刻生效，误点就把线上文章撤了，现在先问一句 */
 async function togglePublish(note: NoteSummary) {
+  const republish = note.status === 'PUBLISHED' && note.hasUnpublishedEdits
+  const publishing = note.status !== 'PUBLISHED'
+  const ok = await confirmAction({
+    title: republish
+      ? `重新发布「${note.title}」？`
+      : publishing
+        ? `发布「${note.title}」？`
+        : `下线「${note.title}」？`,
+    message: republish
+      ? '线上现在是旧版本，重新发布后读者才能看到最近的修改。'
+      : publishing
+        ? '发布后会立即出现在博客上。'
+        : '下线后这篇文章会从博客移除，笔记本身保留为草稿。',
+    confirmText: republish ? '重新发布' : publishing ? '发布' : '下线',
+    danger: !publishing && !republish,
+  })
+  if (!ok) return
   try {
-    const updated = note.status === 'PUBLISHED' ? await unpublishNote(note.id) : await publishNote(note.id)
+    const updated = publishing || republish ? await publishNote(note.id) : await unpublishNote(note.id)
     note.status = updated.status
-    notify(updated.status === 'PUBLISHED' ? '已发布，博客中可以看到' : '已转为草稿')
+    note.hasUnpublishedEdits = updated.hasUnpublishedEdits
+    notify(updated.status === 'PUBLISHED' ? '已发布，博客中可以看到最新内容' : '已转为草稿')
+  } catch (e) {
+    notify(e instanceof Error ? e.message : String(e), 'error')
+  }
+}
+
+/** 待重发笔记的「下线」：内容不动，只是先撤下线上版本 */
+async function unpublishNow(note: NoteSummary) {
+  const ok = await confirmAction({
+    title: `下线「${note.title}」？`,
+    message: '下线后这篇文章会从博客移除，笔记与未发布的修改都保留。',
+    confirmText: '下线',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    const updated = await unpublishNote(note.id)
+    note.status = updated.status
+    notify('已下线，笔记保留为草稿')
   } catch (e) {
     notify(e instanceof Error ? e.message : String(e), 'error')
   }
@@ -743,6 +793,15 @@ onBeforeUnmount(() => {
               已发布
             </button>
             <button type="button" :class="{ on: status === 'DRAFT' }" @click="pickStatus('DRAFT')">草稿</button>
+            <button
+              type="button"
+              class="seg-stale"
+              :class="{ on: status === 'STALE' }"
+              title="已发布、但发布后又改过：线上还是旧内容"
+              @click="pickStatus('STALE')"
+            >
+              待重发
+            </button>
           </div>
           <label v-if="notes.length" class="select-all">
             <input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAllVisible" />
@@ -843,7 +902,12 @@ onBeforeUnmount(() => {
               </span>
               <div class="row-actions" @click.stop>
                 <RouterLink class="btn btn-text" :to="`/editor/${note.slug}`">编辑</RouterLink>
-                <button class="btn btn-text" type="button" @click="togglePublish(note)">
+                <!-- 待重发的笔记行按钮不能再写「下线」：线上还是旧内容，该做的是把新内容推上去 -->
+                <template v-if="note.status === 'PUBLISHED' && note.hasUnpublishedEdits">
+                  <button class="btn btn-text row-cta" type="button" @click="togglePublish(note)">重新发布</button>
+                  <button class="btn btn-text" type="button" @click="unpublishNow(note)">下线</button>
+                </template>
+                <button v-else class="btn btn-text" type="button" @click="togglePublish(note)">
                   {{ note.status === 'PUBLISHED' ? '下线' : '发布' }}
                 </button>
                 <button class="btn btn-text btn-danger-text" type="button" @click="remove(note)">删除</button>
@@ -990,7 +1054,8 @@ onBeforeUnmount(() => {
 .head-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .keys {
@@ -1484,6 +1549,9 @@ onBeforeUnmount(() => {
 
 .row-title {
   display: inline-block;
+  /* 标题里常有 论文阅读_PointLLM-V2_Empowering… 这类没有空格的长标识符，
+     默认只有窄于容器才能折行；不给断点机会就会顶出 92px 的横向滚动 */
+  overflow-wrap: anywhere;
 }
 
 .row-meta {
@@ -1610,7 +1678,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 760px) {
   .layout {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr) 而不是 1fr：网格项默认 min-width:auto，会被标签云的
+       max-content 撑到 1199px，整页因此多出一条横向滚动 */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    min-width: 0;
   }
 
   /* 单列布局下没有左右可拖，把手必须收起，否则会占掉一行高度 */

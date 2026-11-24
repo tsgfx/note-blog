@@ -7,6 +7,7 @@ import { profile } from '../lib/profile'
 
 const stats = ref<BlogStats>({ published: 0, tags: 0 })
 const posts = ref<NoteSummary[]>([])
+const postsFailed = ref(false)
 const libraryReady = ref(false)
 
 const signedIn = isLoggedIn()
@@ -185,10 +186,26 @@ onMounted(async () => {
     // 观察器可能已经在数据到达前触发过一次（那时全是 0），这里补一次
     if (reduceMotion) runLibrary()
   }
+  // 失败不能当成「没有文章」：读者会以为站里是空的，其实是接口挂了
+  postsFailed.value = postsResult.status === 'rejected'
   posts.value = postsResult.status === 'fulfilled' ? postsResult.value.content : []
   libraryReady.value = true
   await observeReveals()
 })
+
+/** 只重取文章列表：首页其余部分（统计、装饰）不必重来 */
+async function retryPosts() {
+  libraryReady.value = false
+  postsFailed.value = false
+  try {
+    posts.value = (await listPublishedNotes(0, 4)).content
+  } catch {
+    postsFailed.value = true
+  } finally {
+    libraryReady.value = true
+    await observeReveals()
+  }
+}
 
 onBeforeUnmount(() => {
   revealObserver?.disconnect()
@@ -425,6 +442,14 @@ function scrollToTop() {
           </li>
         </ol>
         <p v-else-if="!libraryReady" class="quiet">正在读取…</p>
+        <div v-else-if="postsFailed" class="lib-empty">
+          <p class="lib-empty-title">文章列表没读出来</p>
+          <p class="lib-empty-sub">接口暂时没有响应。可以直接去博客页看，或者重试一次。</p>
+          <span class="lib-empty-actions">
+            <button type="button" class="btn btn-ghost btn-sm" @click="retryPosts">重试</button>
+            <RouterLink class="btn btn-ghost btn-sm" to="/blog">去博客</RouterLink>
+          </span>
+        </div>
         <div v-else class="lib-empty">
           <p class="lib-empty-title">还没有公开的文章</p>
           <p class="lib-empty-sub">
@@ -1375,6 +1400,12 @@ function scrollToTop() {
 
 .lib-empty .btn {
   margin-top: var(--space-4);
+}
+
+/* 失败态的两个出口并排：重试 / 去博客 */
+.lib-empty-actions {
+  display: flex;
+  gap: var(--space-3);
 }
 
 .post-list {

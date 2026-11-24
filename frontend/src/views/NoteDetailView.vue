@@ -38,6 +38,8 @@ const linkCopied = ref(false)
 const lightbox = ref('')
 const related = ref<RelatedNote[]>([])
 const backlinks = ref<Backlink[]>([])
+/** 评论条数由 CommentList 报上来：顶部「评论」锚点要显示它，否则读者不知道下面有人聊过 */
+const commentCount = ref(0)
 
 // 划词金句卡片状态
 const quoteModalOpen = ref(false)
@@ -376,7 +378,16 @@ onBeforeUnmount(() => {
 
     <section class="page reader">
       <p v-if="loading" class="empty">正在打开…</p>
-      <p v-else-if="error" class="error-text">{{ error }}</p>
+      <!-- 失败态必须给出路：链接失效、笔记被删、断网时读者只看一行红字会卡死在这里 -->
+      <div v-else-if="error" class="load-failed">
+        <p class="error-text">{{ error }}</p>
+        <div class="load-failed-actions">
+          <button type="button" class="btn" @click="load">重试</button>
+          <RouterLink class="btn btn-ghost" :to="isPublicRoute ? '/blog' : '/notes'">
+            {{ isPublicRoute ? '返回博客' : '返回笔记列表' }}
+          </RouterLink>
+        </div>
+      </div>
 
       <template v-else-if="note">
         <header class="reader-head">
@@ -438,6 +449,10 @@ onBeforeUnmount(() => {
               </svg>
               <span>{{ linkCopied ? '已复制链接' : '分享' }}</span>
             </button>
+            <!-- 评论区在整页最底部，长文读者滚不到那儿；给一个带条数的锚点 -->
+            <RouterLink v-if="isPublicRoute" class="meta-comment" :to="{ hash: '#comments' }">
+              评论{{ commentCount ? ' ' + commentCount : '' }} ↓
+            </RouterLink>
             <span
               v-if="canEdit"
               class="state"
@@ -567,7 +582,7 @@ onBeforeUnmount(() => {
 
         <!-- 评论只出现在公开文章下：/notes/:slug 是管理员的私有视图，
              在那里显示公开评论区会让人以为游客能看到草稿 -->
-        <CommentList v-if="isPublicRoute && note" :slug="note.slug" />
+        <CommentList v-if="isPublicRoute && note" :slug="note.slug" @total="commentCount = $event" />
       </template>
     </section>
 
@@ -1447,5 +1462,38 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: translateX(-50%) scale(1);
   }
+}
+
+/* 失败态：默认的 .error-text 只有一行字，读者既不知道能重试也不知道能回列表 */
+.load-failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+  max-width: 36em;
+  margin: var(--space-6) auto;
+}
+
+.load-failed-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* 与「分享」并排的评论锚点：把评论区从「盲滚到页尾」变成可点的入口 */
+.meta-comment {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  transition: border-color var(--dur-1);
+}
+
+.meta-comment:hover {
+  border-color: var(--pen);
+  color: var(--pen);
 }
 </style>
