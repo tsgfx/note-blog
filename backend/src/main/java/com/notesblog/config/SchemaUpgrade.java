@@ -30,6 +30,12 @@ public class SchemaUpgrade implements ApplicationRunner {
     /** 已发布文章「有未发布修改」标记，见 db/migrations/003。 */
     private static final String NOTE_EDIT_COLUMN = "has_unpublished_edits";
 
+    /** 评论回复：指向父评论 */
+    private static final String COMMENT_PARENT_COLUMN = "parent_id";
+
+    /** 评论回复：博主本人标记 */
+    private static final String COMMENT_AUTHOR_REPLY_COLUMN = "author_reply";
+
     /** 文章阅读量计数 */
     private static final String VIEW_COUNT_COLUMN = "view_count";
 
@@ -42,6 +48,7 @@ public class SchemaUpgrade implements ApplicationRunner {
         upgradeNoteViewCount();
         upgradeUsageTables();
         upgradeCommentsAndGuestQuota();
+        upgradeCommentReplies();
         upgradeSearchLogs();
     }
 
@@ -112,6 +119,34 @@ public class SchemaUpgrade implements ApplicationRunner {
         } catch (DataAccessException e) {
             throw new IllegalStateException(
                     "无法自动创建评论与配额表，请手工执行 db/migrations/004_add_comments_and_guest_quota.sql", e);
+        }
+    }
+
+    /**
+     * 给 comments 表补 parent_id / author_reply（见 db/migrations/006）。
+     *
+     * <p>两列分开判断：老库可能手工加过其中一列，缺哪列补哪列，重复执行无副作用。
+     */
+    private void upgradeCommentReplies() {
+        if (!tableExists("comments")) {
+            return;
+        }
+        try {
+            if (!columnExists("comments", COMMENT_PARENT_COLUMN)) {
+                jdbc.execute("ALTER TABLE comments ADD COLUMN " + COMMENT_PARENT_COLUMN
+                        + " BIGINT DEFAULT NULL AFTER note_id");
+                jdbc.execute("ALTER TABLE comments ADD KEY idx_comments_parent"
+                        + " (parent_id, status, created_at)");
+                log.info("schema_upgraded comments.{}", COMMENT_PARENT_COLUMN);
+            }
+            if (!columnExists("comments", COMMENT_AUTHOR_REPLY_COLUMN)) {
+                jdbc.execute("ALTER TABLE comments ADD COLUMN " + COMMENT_AUTHOR_REPLY_COLUMN
+                        + " BOOLEAN NOT NULL DEFAULT FALSE AFTER status");
+                log.info("schema_upgraded comments.{}", COMMENT_AUTHOR_REPLY_COLUMN);
+            }
+        } catch (DataAccessException e) {
+            throw new IllegalStateException(
+                    "无法自动为 comments 表添加回复列，请手工执行 db/migrations/006_add_comment_replies.sql", e);
         }
     }
 

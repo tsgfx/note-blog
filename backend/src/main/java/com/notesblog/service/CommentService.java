@@ -10,6 +10,8 @@ import com.notesblog.dto.CommentDto;
 import com.notesblog.dto.CreateCommentRequest;
 import com.notesblog.repository.CommentRepository;
 import com.notesblog.repository.NoteRepository;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CommentService {
 
+    private static final int MAX_CONTENT = 2000;
     static final int DEFAULT_PAGE_SIZE = 20;
     static final int MAX_PAGE_SIZE = 50;
 
@@ -44,14 +47,34 @@ public class CommentService {
     private final AuditService auditService;
     private final NotificationService notificationService;
 
-    /** 公开列表：只返回 VISIBLE，按时间正序。 */
+    /**
+     * 公开列表：顶层评论分页，回复挂在父评论下面一起返回。
+     *
+     * <p>只取 VISIBLE；回复不单独占分页位——否则一条被回三次的评论会把整页挤满。
+     */
     @Transactional(readOnly = true)
     public Page<CommentDto> publicList(String slug, int page, int size) {
         Note note = publishedNote(slug);
         Pageable pageable = PageRequest.of(Math.max(page, 0), clampSize(size));
-        return commentRepository
-                .findByNoteIdAndStatusOrderByCreatedAtAsc(note.getId(), CommentStatus.VISIBLE, pageable)
-                .map(CommentDto::from);
+        Page<Comment> roots = commentRepository
+                .findByNoteIdAndStatusAndParentIdIsNullOrderByCreatedAtAsc(
+                        note.getId(), CommentStatus.VISIBLE, pageable);
+
+        List<Long> rootIds = roots.getContent().stream().map(Comment::getId).toList();
+        Map<Long, List<CommentDto>> replies = new LinkedHashMap<>();
+        if (!rootIds.isEmpty()) {
+            commentRepository.findByParentIdInAndStatusOrderByCreatedAtAsc(rootIds, CommentStatus.VISIBLE)
+                    .forEach(reply -> replies
+                            .computeIfAbsent(reply.getParentId(), key -> new ArrayList<>())
+                            .add(CommentDto.from(reply)));
+        }
+        return roots.map(root -> withReplies(CommentDto.from(root),
+                replies.getOrDefault(root.getId(), List.of())));
+    }
+
+    private static CommentDto withReplies(CommentDto base, List<CommentDto> replies) {
+        return new CommentDto(base.id(), base.author(), base.content(), base.createdAt(),
+                base.parentId(), base.authorReply(), List.copyOf(replies));
     }
 
     /**
@@ -71,6 +94,7 @@ public class CommentService {
         }
         Comment comment = new Comment();
         comment.setNoteId(note.getId());
+        comment.setParentId(visibleRootId(note.getId(), request.parentId()));
         comment.setContent(request.content().trim());
         comment.setStatus(CommentStatus.VISIBLE);
         comment.setClientIp(clientIp);
@@ -78,6 +102,45 @@ public class CommentService {
         log.info("comment_created id={} note={} ip={}", comment.getId(), note.getId(), clientIp);
         notificationService.notifyNewComment(note.getTitle(), note.getSlug(), comment.getContent(), clientIp);
         return CommentDto.from(comment);
+    }
+
+    /**
+     * 博主回复某条评论（管理端接口）。
+     *
+     * <p>回复自身也是 comments 表里的一行，{@code author_reply = true}：
+     * 公开页据此显示「博主」并加底色，不必另建一张表。管理员身份来自登录态，
+     * 不读请求体里的任何「我是谁」字段。
+     */
+    @Transactional
+    public AdminCommentDto reply(Long parentId, String content) {
+        String text = content == null ? "" : content.trim();
+        if (text.isEmpty()) {
+            throw new IllegalArgumentException("回复内容不能为空");
+        }
+        if (text.length() > MAX_CONTENT) {
+            throw new IllegalArgumentException("回复内容最多 " + MAX_CONTENT + " 字");
+        }
+        Comment parent = commentRepository.findById(parentId)
+                .orElseThrow(() -> new NotFoundException("评论不存在：" + parentId));
+        if (parent.getParentId() != null) {
+            throw new IllegalArgumentException("只能回复顶层评论，不支持对回复再回复");
+        }
+        // 已隐藏的评论不能再拿到回复：否则回复会出现在公开页上，等于绕过了隐藏
+        if (parent.getStatus() != CommentStatus.VISIBLE) {
+            throw new NotFoundException("评论不存在：" + parentId);
+        }
+        Comment reply = new Comment();
+        reply.setNoteId(parent.getNoteId());
+        reply.setParentId(parent.getId());
+        reply.setAuthorReply(true);
+        reply.setContent(text);
+        reply.setStatus(CommentStatus.VISIBLE);
+        commentRepository.save(reply);
+        auditService.record("COMMENT_REPLY", String.valueOf(parent.getId()), truncate(text, 120));
+        log.info("comment_replied parent={} reply={}", parent.getId(), reply.getId());
+        Note note = noteRepository.findById(parent.getNoteId()).orElse(null);
+        return AdminCommentDto.from(reply, note == null ? null : note.getTitle(),
+                note == null ? null : note.getSlug());
     }
 
     /* ───────── 管理端 ───────── */
@@ -127,6 +190,23 @@ public class CommentService {
     /* ───────── 内部 ───────── */
 
     /** 取已发布笔记；草稿或不存在的 slug 一律 404，不暴露「存在但没发布」。 */
+    /**
+     * 游客回复：只接受「同属一篇已发布文章、且仍可见的顶层评论」的 id。
+     *
+     * <p>不校验的话，拿别人的 id 就能把回复挂到未发布文章或已隐藏的评论下面。
+     */
+    private Long visibleRootId(Long noteId, Long parentId) {
+        if (parentId == null) {
+            return null;
+        }
+        Comment parent = commentRepository.findById(parentId)
+                .filter(c -> c.getNoteId().equals(noteId))
+                .filter(c -> c.getParentId() == null)
+                .filter(c -> c.getStatus() == CommentStatus.VISIBLE)
+                .orElseThrow(() -> new IllegalArgumentException("回复的评论不存在或已隐藏"));
+        return parent.getId();
+    }
+
     private Note publishedNote(String slug) {
         return noteRepository.findBySlug(slug)
                 .filter(note -> note.getStatus() == NoteStatus.PUBLISHED)

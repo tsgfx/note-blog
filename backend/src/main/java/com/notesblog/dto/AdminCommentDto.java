@@ -18,6 +18,8 @@ public record AdminCommentDto(
         String content,
         String status,
         String clientIp,
+        Long parentId,
+        boolean authorReply,
         LocalDateTime createdAt) {
 
     public static AdminCommentDto from(Comment c, String noteTitle, String noteSlug) {
@@ -26,11 +28,15 @@ public record AdminCommentDto(
                 c.getNoteId(),
                 noteTitle,
                 noteSlug,
-                c.getNickname() == null || c.getNickname().isBlank()
-                        ? CommentDto.GUEST_AUTHOR : c.getNickname(),
+                c.isAuthorReply()
+                        ? CommentDto.AUTHOR_NAME
+                        : (c.getNickname() == null || c.getNickname().isBlank()
+                                ? CommentDto.GUEST_AUTHOR : c.getNickname()),
                 c.getContent(),
                 c.getStatus() == null ? null : c.getStatus().name(),
                 c.getClientIp(),
+                c.getParentId(),
+                c.isAuthorReply(),
                 c.getCreatedAt());
     }
 }

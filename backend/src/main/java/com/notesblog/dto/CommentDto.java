@@ -2,6 +2,7 @@ package com.notesblog.dto;
 
 import com.notesblog.domain.Comment;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 公开评论视图。<b>刻意不含 {@code clientIp}</b>：
@@ -9,15 +10,29 @@ import java.time.LocalDateTime;
  *
  * <p>{@code author} 目前恒为「访客」——游客不填昵称（见 Comment 实体注释）。
  */
-public record CommentDto(Long id, String author, String content, LocalDateTime createdAt) {
+public record CommentDto(
+        Long id,
+        String author,
+        String content,
+        LocalDateTime createdAt,
+        Long parentId,
+        boolean authorReply,
+        List<CommentDto> replies) {
 
     public static final String GUEST_AUTHOR = "访客";
+    /** 博主自己的回复：公开页要一眼看出「这是作者在回你」。 */
+    public static final String AUTHOR_NAME = "博主";
 
     public static CommentDto from(Comment c) {
         return new CommentDto(
                 c.getId(),
-                c.getNickname() == null || c.getNickname().isBlank() ? GUEST_AUTHOR : c.getNickname(),
+                c.isAuthorReply()
+                        ? AUTHOR_NAME
+                        : (c.getNickname() == null || c.getNickname().isBlank() ? GUEST_AUTHOR : c.getNickname()),
                 c.getContent(),
-                c.getCreatedAt());
+                c.getCreatedAt(),
+                c.getParentId(),
+                c.isAuthorReply(),
+                List.of());
     }
 }

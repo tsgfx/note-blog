@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { deleteComment, listAllComments, setCommentVisibility, type AdminComment } from '../api/comments'
+import {
+  deleteComment,
+  listAllComments,
+  replyToComment,
+  setCommentVisibility,
+  type AdminComment,
+} from '../api/comments'
 import LoadingRows from '../components/LoadingRows.vue'
 import { notify } from '../lib/feedback'
 
@@ -13,6 +19,42 @@ const loading = ref(true)
 const error = ref('')
 /** 正在处理中的行 id：按钮禁用，避免重复点 */
 const busyId = ref<number | null>(null)
+
+/** 正在回复的父评论 id，null 表示没在写回复 */
+const replyingId = ref<number | null>(null)
+const replyText = ref('')
+const replyBusy = ref(false)
+const MAX_REPLY = 2000
+
+const replyRemaining = computed(() => MAX_REPLY - replyText.value.length)
+const canReply = computed(() => replyText.value.trim().length > 0 && !replyBusy.value)
+
+function startReply(item: AdminComment) {
+  // 只允许回复顶层评论：回复的回复会让公开页出现三层缩进，阅读反而不便
+  if (item.parentId) return
+  replyingId.value = item.id
+  replyText.value = ''
+}
+
+function cancelReply() {
+  replyingId.value = null
+  replyText.value = ''
+}
+
+async function submitReply(item: AdminComment) {
+  if (!canReply.value) return
+  replyBusy.value = true
+  try {
+    await replyToComment(item.id, replyText.value.trim())
+    notify('已回复')
+    cancelReply()
+    await load(page.value)
+  } catch (e) {
+    notify(e instanceof Error ? e.message : '回复失败', 'error')
+  } finally {
+    replyBusy.value = false
+  }
+}
 
 function formatTime(value: string): string {
   if (!value) return ''
@@ -95,7 +137,9 @@ onMounted(() => load(0))
         :class="{ 'is-hidden': item.status === 'HIDDEN' }"
       >
         <div class="row-head">
-          <span class="row-author">{{ item.author }}</span>
+          <span class="row-author" :class="{ 'is-author': item.authorReply }">{{ item.author }}</span>
+          <span v-if="item.authorReply" class="badge-reply">博主回复</span>
+          <span v-if="item.parentId" class="badge-reply">回复 #{{ item.parentId }}</span>
           <span v-if="item.status === 'HIDDEN'" class="badge-hidden">已隐藏</span>
           <time class="row-time" :datetime="item.createdAt">{{ formatTime(item.createdAt) }}</time>
           <span v-if="item.clientIp" class="row-ip" title="仅管理员可见，用于追溯来源">{{ item.clientIp }}</span>
@@ -116,6 +160,15 @@ onMounted(() => load(0))
           <span v-else class="row-note">文章已不存在</span>
 
           <span class="row-actions">
+            <button
+              v-if="!item.parentId && item.status === 'VISIBLE'"
+              class="btn btn-ghost btn-sm"
+              type="button"
+              :disabled="busyId === item.id"
+              @click="startReply(item)"
+            >
+              回复
+            </button>
             <button class="btn btn-ghost btn-sm" type="button" :disabled="busyId === item.id" @click="toggle(item)">
               {{ item.status === 'VISIBLE' ? '隐藏' : '恢复可见' }}
             </button>
@@ -129,6 +182,33 @@ onMounted(() => load(0))
             </button>
           </span>
         </div>
+
+        <!-- 回复框就地展开：不弹窗，省一次上下文切换 -->
+        <form
+          v-if="replyingId === item.id"
+          class="reply-form"
+          @submit.prevent="submitReply(item)"
+          @keydown.esc="cancelReply"
+        >
+          <label class="sr-only" :for="`reply-${item.id}`">回复内容</label>
+          <textarea
+            :id="`reply-${item.id}`"
+            v-model="replyText"
+            class="reply-input"
+            rows="2"
+            :maxlength="MAX_REPLY"
+            :placeholder="`以「博主」身份回复 ${item.author}`"
+          />
+          <div class="reply-actions">
+            <span v-if="replyRemaining < 200" class="reply-count">还可输入 {{ replyRemaining }} 字</span>
+            <span class="row-actions">
+              <button class="btn btn-ghost btn-sm" type="button" @click="cancelReply">取消</button>
+              <button class="btn btn-sm" type="submit" :disabled="!canReply">
+                {{ replyBusy ? '发送中…' : '回复' }}
+              </button>
+            </span>
+          </div>
+        </form>
       </li>
     </ol>
 
@@ -166,6 +246,51 @@ onMounted(() => load(0))
   background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: var(--radius-2);
+}
+
+.row-author.is-author {
+  color: var(--pen);
+  font-weight: 600;
+}
+
+.badge-reply {
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  color: var(--pen);
+  border: 1px solid var(--pen-soft);
+  border-radius: 999px;
+}
+
+.reply-form {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--rule);
+}
+
+.reply-input {
+  width: 100%;
+  padding: var(--space-2);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-2);
+  resize: vertical;
+}
+
+.reply-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.reply-count {
+  font-size: 0.82rem;
+  color: var(--warn, #a4622a);
 }
 
 /* 已隐藏的行降饱和：一眼能看出「这条不在公开页」 */

@@ -94,7 +94,7 @@ onMounted(() => load(0))
         class="comment-input"
         rows="3"
         :maxlength="MAX_LEN"
-        placeholder="说点什么…（不填昵称，显示为「访客」）"
+        placeholder="说点什么…（显示为「访客」）"
       />
       <!-- 蜜罐：对正常用户不可见、不可聚焦，机器人会填 -->
       <div class="honeypot" aria-hidden="true">
@@ -123,10 +123,20 @@ onMounted(() => load(0))
     <ol v-else class="comment-list">
       <li v-for="item in comments" :key="item.id" class="comment-item">
         <div class="comment-meta">
-          <span class="comment-author">{{ item.author }}</span>
+          <span class="comment-author" :class="{ 'is-author': item.authorReply }">{{ item.author }}</span>
           <time class="comment-time">{{ formatTime(item.createdAt) }}</time>
         </div>
         <p class="comment-body">{{ item.content }}</p>
+        <!-- 回复只嵌一层：父评论隐藏时后端不再返回它，公开页也不会留孤儿回复 -->
+        <ol v-if="item.replies?.length" class="comment-replies">
+          <li v-for="reply in item.replies" :key="reply.id" class="comment-reply">
+            <div class="comment-meta">
+              <span class="comment-author" :class="{ 'is-author': reply.authorReply }">{{ reply.author }}</span>
+              <time class="comment-time">{{ formatTime(reply.createdAt) }}</time>
+            </div>
+            <p class="comment-body">{{ reply.content }}</p>
+          </li>
+        </ol>
       </li>
     </ol>
 
@@ -230,6 +240,21 @@ onMounted(() => load(0))
   padding: var(--space-4) 0;
   font-size: 0.9rem;
   color: var(--ink-faint);
+}
+
+.comment-replies {
+  margin-top: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--rule);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.comment-author.is-author {
+  color: var(--pen);
+  font-weight: 600;
 }
 
 .comment-list {

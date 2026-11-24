@@ -71,7 +71,7 @@ class CommentServiceTest {
         aNote("hello", NoteStatus.PUBLISHED);
 
         CommentDto dto = service.create("hello",
-                new CreateCommentRequest("写得很好", null), "1.2.3.4");
+                new CreateCommentRequest("写得很好", null, null), "1.2.3.4");
 
         Comment saved = capturedComment();
         assertThat(saved.getStatus()).isEqualTo(CommentStatus.VISIBLE);
@@ -86,7 +86,7 @@ class CommentServiceTest {
         aNote("hello", NoteStatus.PUBLISHED);
 
         CommentDto dto = service.create("hello",
-                new CreateCommentRequest("内容", null), "203.0.113.9");
+                new CreateCommentRequest("内容", null, null), "203.0.113.9");
 
         // 公开 DTO 里根本没有 ip 字段，这一条靠类型保证；
         // 这里额外确认 clientIp 确实存到了库里（管理端追溯要有）
@@ -102,7 +102,7 @@ class CommentServiceTest {
         aNote("draft-post", NoteStatus.DRAFT);
 
         assertThatThrownBy(() -> service.create("draft-post",
-                new CreateCommentRequest("内容", null), "1.2.3.4"))
+                new CreateCommentRequest("内容", null, null), "1.2.3.4"))
                 .isInstanceOf(NotFoundException.class);
 
         verify(commentRepository, never()).save(any());
@@ -114,7 +114,7 @@ class CommentServiceTest {
         aNote("hello", NoteStatus.PUBLISHED);
 
         CommentDto dto = service.create("hello",
-                new CreateCommentRequest("买买买 http://spam.example", true), "1.2.3.4");
+                new CreateCommentRequest("买买买 http://spam.example", true, null), "1.2.3.4");
 
         assertThat(dto).isNull();
         verify(commentRepository, never()).save(any());
@@ -126,7 +126,7 @@ class CommentServiceTest {
     void contentIsTrimmed() {
         aNote("hello", NoteStatus.PUBLISHED);
 
-        service.create("hello", new CreateCommentRequest("  有内容  ", null), "1.2.3.4");
+        service.create("hello", new CreateCommentRequest("  有内容  ", null, null), "1.2.3.4");
 
         assertThat(capturedComment().getContent()).isEqualTo("有内容");
     }
@@ -149,5 +149,87 @@ class CommentServiceTest {
         verify(commentRepository, never()).delete(any());
         // 管理操作要留痕
         verify(auditService).record(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("博主回复：落库为 authorReply=true，且跟随父评论的 noteId")
+    void replyCreatesAuthorComment() {
+        Comment parent = new Comment();
+        parent.setId(9L);
+        parent.setNoteId(42L);
+        parent.setStatus(CommentStatus.VISIBLE);
+        when(commentRepository.findById(9L)).thenReturn(Optional.of(parent));
+
+        var dto = service.reply(9L, "  谢谢你的反馈  ");
+
+        Comment saved = capturedComment();
+        assertThat(saved.getParentId()).isEqualTo(9L);
+        assertThat(saved.getNoteId()).isEqualTo(42L);
+        assertThat(saved.isAuthorReply()).isTrue();
+        assertThat(saved.getContent()).isEqualTo("谢谢你的反馈");
+        assertThat(saved.getStatus()).isEqualTo(CommentStatus.VISIBLE);
+        assertThat(dto.author()).isEqualTo(CommentDto.AUTHOR_NAME);
+        verify(auditService).record(eq("COMMENT_REPLY"), eq("9"), any());
+    }
+
+    @Test
+    @DisplayName("不支持对回复再回复：只允许一层嵌套")
+    void cannotReplyToAReply() {
+        Comment child = new Comment();
+        child.setId(10L);
+        child.setNoteId(42L);
+        child.setParentId(9L);
+        child.setStatus(CommentStatus.VISIBLE);
+        when(commentRepository.findById(10L)).thenReturn(Optional.of(child));
+
+        assertThatThrownBy(() -> service.reply(10L, "再回一层"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(commentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("回复已隐藏的评论被拒绝：否则会绕过隐藏")
+    void cannotReplyToHiddenComment() {
+        Comment hidden = new Comment();
+        hidden.setId(11L);
+        hidden.setNoteId(42L);
+        hidden.setStatus(CommentStatus.HIDDEN);
+        when(commentRepository.findById(11L)).thenReturn(Optional.of(hidden));
+
+        assertThatThrownBy(() -> service.reply(11L, "试图回到公开页"))
+                .isInstanceOf(NotFoundException.class);
+        verify(commentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("公开视图把回复挂在父评论上，且只给顶层评论分页")
+    void publicListGroupsRepliesUnderParents() {
+        Comment parent = new Comment();
+        parent.setId(20L);
+        parent.setNoteId(42L);
+        parent.setContent("父评论");
+        parent.setStatus(CommentStatus.VISIBLE);
+
+        Comment reply = new Comment();
+        reply.setId(21L);
+        reply.setNoteId(42L);
+        reply.setParentId(20L);
+        reply.setAuthorReply(true);
+        reply.setContent("博主回复");
+        reply.setStatus(CommentStatus.VISIBLE);
+
+        when(commentRepository.findByNoteIdAndStatusAndParentIdIsNullOrderByCreatedAtAsc(
+                eq(42L), eq(CommentStatus.VISIBLE), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(parent)));
+        when(commentRepository.findByParentIdInAndStatusOrderByCreatedAtAsc(
+                any(), eq(CommentStatus.VISIBLE)))
+                .thenReturn(java.util.List.of(reply));
+
+        aNote("hello", NoteStatus.PUBLISHED);
+        var page = service.publicList("hello", 0, 20);
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().get(0).replies()).hasSize(1);
+        assertThat(page.getContent().get(0).replies().get(0).author()).isEqualTo(CommentDto.AUTHOR_NAME);
     }
 }

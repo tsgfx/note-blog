@@ -16,7 +16,8 @@ public record CreateCommentRequest(
         @NotBlank(message = "评论内容不能为空")
         @Size(max = 2000, message = "评论不能超过 2000 个字符")
         String content,
-        Boolean website) {
+        Boolean website,
+        Long parentId) {
 
     /** 蜜罐被填了没有。null 视为没填（正常请求不带这个字段）。 */
     public boolean honeypotFilled() {

@@ -34,6 +34,19 @@ public class Comment {
     @Column(name = "note_id", nullable = false)
     private Long noteId;
 
+    /**
+     * 回复的是哪条评论；顶层评论为 null。
+     *
+     * <p>只做一层嵌套：游客回复游客，博主回复游客，都不再往下套。
+     * 多层树在前端要递归渲染，收益却只在「互相对话」的场景里成立，不值得。
+     */
+    @Column(name = "parent_id")
+    private Long parentId;
+
+    /** 博主本人的回复。游客评论恒为 false，渲染时据此换标签与底色。 */
+    @Column(name = "author_reply", nullable = false)
+    private boolean authorReply = false;
+
     private String nickname;
 
     @Column(nullable = false, length = 2000)

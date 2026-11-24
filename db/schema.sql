@@ -95,15 +95,18 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- 定义必须与 db/migrations/004 及 SchemaUpgrade 保持一致。
 CREATE TABLE IF NOT EXISTS comments (
   id         BIGINT       NOT NULL AUTO_INCREMENT,
-  note_id    BIGINT       NOT NULL,
-  nickname   VARCHAR(32)  DEFAULT NULL,
+  note_id      BIGINT       NOT NULL,
+  parent_id    BIGINT       DEFAULT NULL,
+  nickname     VARCHAR(32)  DEFAULT NULL,
   content    VARCHAR(2000) NOT NULL,
-  status     VARCHAR(16)  NOT NULL DEFAULT 'VISIBLE',
-  client_ip  VARCHAR(64)  DEFAULT NULL,
+  status       VARCHAR(16)  NOT NULL DEFAULT 'VISIBLE',
+  author_reply BOOLEAN      NOT NULL DEFAULT FALSE,
+  client_ip    VARCHAR(64)  DEFAULT NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_comments_note (note_id, status, created_at),
+  KEY idx_comments_parent (parent_id, status, created_at),
   KEY idx_comments_created (created_at),
   CONSTRAINT fk_comments_note FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
