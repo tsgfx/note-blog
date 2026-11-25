@@ -135,6 +135,10 @@ function signOut() {
           <RouterLink class="btn btn-ghost btn-sm topbar-write" to="/editor/new">写笔记</RouterLink>
           <RouterLink class="btn-text-link nav-secondary" to="/admin/comments">评论</RouterLink>
           <RouterLink class="btn-text-link nav-secondary" to="/admin/audit">操作日志</RouterLink>
+          <!-- 桌面顶栏给管理工具留一个入口：只在 ☰ 里放的话，桌面根本看不到那颗按钮 -->
+          <RouterLink class="btn-text-link nav-secondary" to="/admin/tools/accounts" title="账号整理">
+            工具
+          </RouterLink>
           <RouterLink class="btn-text-link nav-secondary" to="/settings">设置</RouterLink>
           <button
             class="btn-text-link icon-link theme-toggle"
@@ -355,6 +359,13 @@ function signOut() {
 .topbar-menu-panel button:hover {
   background: var(--pen-soft);
   color: var(--pen);
+}
+
+/* 平板宽度（768–900）八个入口会顶出横向滚动条，先收紧间距；再窄就交给 ☰ */
+@media (min-width: 761px) and (max-width: 900px) {
+  .topbar-actions {
+    gap: var(--space-3);
+  }
 }
 
 @media (max-width: 760px) {
