@@ -120,7 +120,8 @@ test.describe('管理员工具', () => {
   test('未登录访问账号整理会被送到登录页，并记住原地址', async ({ page }) => {
     await page.goto('/admin/tools/accounts')
     await expect(page).toHaveURL(/\/login/)
-    expect(page.url()).toContain(encodeURIComponent('/admin/tools/accounts'))
+    // vue-router 的 query 序列化不转义 '/'，所以断言原样的路径
+    expect(page.url()).toContain('redirect=/admin/tools/accounts')
   })
 
   test('账号整理：粘贴四条格式，能拆成卡片、原始行、JSON 与 CSV', async ({ page }) => {
