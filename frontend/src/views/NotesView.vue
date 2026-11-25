@@ -89,6 +89,9 @@ function resetSidebar() {
 const router = useRouter()
 const route = useRoute()
 
+/** 被管理员页面挡回来时，路由会带 notice=admin-only：说清为什么落到这里，而不是无声跳转。 */
+const accessNotice = ref(route.query.notice === 'admin-only' ? '该页面仅管理员可用，已回到笔记列表。' : '')
+
 const notes = ref<NoteSummary[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -680,6 +683,10 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="page library">
+    <p v-if="accessNotice" class="notice notice-warn access-notice">
+      {{ accessNotice }}
+      <button type="button" class="btn-text-link" @click="accessNotice = ''">知道了</button>
+    </p>
     <header class="page-head">
       <div>
         <h1 class="page-title">笔记</h1>

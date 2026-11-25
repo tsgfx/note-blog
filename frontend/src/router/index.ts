@@ -1,9 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getMe, isAdmin } from '../api/account'
 
 declare module 'vue-router' {
   interface RouteMeta {
     /** 公开页面：未登录也可访问。其余页面默认需要登录。 */
     public?: boolean
+    /** 仅管理员：非 ADMIN 会被送去笔记列表并提示。注意这只是体验层防误入，不是安全边界。 */
+    admin?: boolean
     title?: string
   }
 }
@@ -76,6 +79,12 @@ const router = createRouter({
       meta: { title: '评论管理' },
     },
     {
+      path: '/admin/tools/accounts',
+      name: 'admin-accounts',
+      component: () => import('../views/AccountParserView.vue'),
+      meta: { title: '账号整理', admin: true },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
@@ -121,13 +130,42 @@ router.onError((error, to) => {
   window.location.assign(to.fullPath)
 })
 
-router.beforeEach((to) => {
+/**
+ * 管理员判定缓存。用令牌本身作为缓存键：换号登录 / 登出都会换令牌，缓存自然失效，
+ * 不需要额外在登录、登出、401 拦截里各挂一次清理（挂漏了就是「换个账号还带着旧权限」）。
+ */
+let meCache: { token: string; admin: boolean } | null = null
+
+async function isAdminSession(): Promise<boolean | null> {
+  const token = localStorage.getItem('notes_blog_token')
+  if (!token) return null
+  if (meCache?.token === token) return meCache.admin
+  try {
+    const me = await getMe()
+    if (!me) return null
+    meCache = { token, admin: isAdmin(me) }
+    return meCache.admin
+  } catch {
+    return null
+  }
+}
+
+router.beforeEach(async (to) => {
   const loggedIn = Boolean(localStorage.getItem('notes_blog_token'))
   if (!to.meta.public && !loggedIn) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.name === 'login' && loggedIn) {
     return { name: 'notes' }
+  }
+  if (to.meta.admin) {
+    const admin = await isAdminSession()
+    if (admin === null) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    if (!admin) {
+      return { name: 'notes', query: { notice: 'admin-only' } }
+    }
   }
 })
 

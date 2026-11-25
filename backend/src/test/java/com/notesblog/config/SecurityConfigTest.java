@@ -65,6 +65,8 @@ class SecurityConfigTest {
     @MockitoBean
     private NoteRepository noteRepository;
     @MockitoBean
+    private com.notesblog.repository.UserRepository userRepository;
+    @MockitoBean
     private TokenVersionService tokenVersionService;
 
     @TestConfiguration

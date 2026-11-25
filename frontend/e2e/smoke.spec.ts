@@ -115,3 +115,62 @@ test.describe('登录后', () => {
     expect(failures, `接口失败：\n${failures.join('\n')}`).toEqual([])
   })
 })
+
+test.describe('管理员工具', () => {
+  test('未登录访问账号整理会被送到登录页，并记住原地址', async ({ page }) => {
+    await page.goto('/admin/tools/accounts')
+    await expect(page).toHaveURL(/\/login/)
+    expect(page.url()).toContain(encodeURIComponent('/admin/tools/accounts'))
+  })
+
+  test('账号整理：粘贴四条格式，能拆成卡片、原始行、JSON 与 CSV', async ({ page }) => {
+    const failures = trackApiFailures(page)
+    await login(page)
+
+    await page.goto('/admin/tools/accounts')
+    await expect(page.locator('h1.page-title')).toHaveText('账号整理')
+
+    const raw = [
+      'alice@example.com----P@ss w0rd----alice.backup@example.com----123456',
+      '13800138000----carolpass----carol@example.com',
+      '{"email":"bob@example.com","password":"bobpass","recovery_email":"bob.backup@example.com","totp_secret":"JBSWY3DPEHPK3PXP"}',
+      '账号：dora@example.com 密码是 Zz9988 辅助邮箱：dora.backup@example.com',
+    ].join('\n\n')
+
+    await page.fill('#account-raw-input', raw)
+    await expect(page.locator('.acc-card')).toHaveCount(4, { timeout: 10_000 })
+
+    // 第 1 条：密码里的空格与 @ 都要原样保留
+    const first = page.locator('.acc-card').first()
+    await expect(first.locator('.acc-field-input').nth(0)).toHaveValue('alice@example.com')
+    await expect(first.locator('.acc-field-input').nth(1)).toHaveValue('P@ss w0rd')
+    await expect(first.locator('.acc-field-input').nth(2)).toHaveValue('alice.backup@example.com')
+    await expect(first.locator('.acc-field-input').nth(3)).toHaveValue('123456')
+
+    // 第 2 条：手机号当账号
+    await expect(page.locator('.acc-card').nth(1).locator('.acc-field-input').nth(0)).toHaveValue('13800138000')
+
+    // 第 3 条：TOTP 密钥能算出当前验证码（6 位数字）
+    await expect(page.locator('.acc-card').nth(2).locator('.acc-totp-code')).toHaveText(/^\d{6}$/)
+
+    // 输出面板默认打码，点卡片上的「显示」才还原明文
+    await page.locator('.acc-card').first().locator('button', { hasText: '显示' }).click()
+
+    // 原始行逐字保留
+    await expect(page.locator('.acc-pre').first()).toContainText(
+      'alice@example.com----P@ss w0rd----alice.backup@example.com----123456',
+    )
+
+    // JSON / CSV 面板拿真值（不走打码显示）来解析
+    const jsonText = await page.evaluate(() => document.querySelectorAll('.acc-pre')[1]?.textContent ?? '')
+    expect(JSON.parse(jsonText)).toHaveLength(4)
+    const csvText = await page.evaluate(() => document.querySelectorAll('.acc-pre')[2]?.textContent ?? '')
+    expect(csvText.split('\n').length).toBe(5)
+
+    await page.click('button:has-text("清空")')
+    await expect(page.locator('#account-raw-input')).toHaveValue('')
+    await expect(page.locator('.acc-card')).toHaveCount(0)
+
+    expect(failures, `接口失败：\n${failures.join('\n')}`).toEqual([])
+  })
+})

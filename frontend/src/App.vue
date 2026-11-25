@@ -161,6 +161,7 @@ function signOut() {
               <RouterLink to="/editor/new" @click="closeMenu">写笔记</RouterLink>
               <button type="button" @click="toggleThemeFromMenu">切换主题</button>
               <RouterLink to="/admin/comments" @click="closeMenu">评论</RouterLink>
+              <RouterLink to="/admin/tools/accounts" @click="closeMenu">账号整理</RouterLink>
               <RouterLink to="/admin/audit" @click="closeMenu">操作日志</RouterLink>
               <RouterLink to="/settings" @click="closeMenu">设置</RouterLink>
               <button type="button" @click="signOutFromMenu">退出</button>

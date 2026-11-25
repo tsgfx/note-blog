@@ -54,6 +54,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # 零依赖单测：Node 22 自带类型剥离，不引测试框架（解析器/TOTP 是纯函数，
+      # 装在 Node 内置的 runner 里跑最省事，也不会给前端多一个依赖）
+      - run: node --experimental-strip-types --test test/*.test.ts
       - run: npm run lint
       - run: npm run format:check
       - run: npm run build

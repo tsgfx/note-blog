@@ -1,5 +1,5 @@
 /** 写入剪贴板。非安全上下文（如局域网 IP 访问）下回退到 execCommand。 */
-async function writeClipboard(text: string): Promise<boolean> {
+export async function writeClipboard(text: string): Promise<boolean> {
   if (window.isSecureContext && navigator.clipboard) {
     try {
       await navigator.clipboard.writeText(text)
