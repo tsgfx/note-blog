@@ -116,6 +116,32 @@ test.describe('登录后', () => {
   })
 })
 
+test.describe('编辑器代码块', () => {
+  test('能选代码语言、切换自动换行，并把语言写进 markdown 围栏', async ({ page }) => {
+    const failures = trackApiFailures(page)
+    await login(page)
+    await page.goto('/editor/new')
+    await expect(page.locator('.rich-body .tiptap')).toBeVisible({ timeout: 15_000 })
+
+    await page.locator(".toolbar button[title='代码块']").first().click()
+    await page.keyboard.type('print(1)')
+    await page.selectOption('.toolbar-lang', 'python')
+    await expect(page.locator('.rich-body pre code').first()).toHaveClass(/language-python/)
+
+    // 默认按原样横向滚动，开了「自动换行」才折行
+    const whiteSpace = () => page.evaluate(() => getComputedStyle(document.querySelector('.rich-body pre')!).whiteSpace)
+    expect(await whiteSpace()).toBe('pre')
+    await page.locator("button[title^='代码块自动换行']").click()
+    expect(await whiteSpace()).toBe('pre-wrap')
+
+    // 切到源码模式，围栏要带上语言，否则阅读页没有高亮
+    await page.locator('.mode-switch button', { hasText: 'Markdown' }).click()
+    await expect(page.locator('.frame.source textarea')).toHaveValue(/```python/)
+
+    expect(failures, `接口失败：\n${failures.join('\n')}`).toEqual([])
+  })
+})
+
 test.describe('管理员工具', () => {
   test('未登录访问账号整理会被送到登录页，并记住原地址', async ({ page }) => {
     await page.goto('/admin/tools/accounts')

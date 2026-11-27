@@ -81,6 +81,53 @@ const fileInput = ref<HTMLInputElement>()
 const syncScroll = ref(true)
 const dragging = ref(false)
 
+/* 代码块：语言标注 + 自动换行（换行只是编辑时的观感，写进 markdown 的始终是原样缩进） */
+const WRAP_KEY = 'note-editor-code-wrap'
+const wrapCode = ref(localStorage.getItem(WRAP_KEY) === '1')
+watch(wrapCode, (value) => {
+  try {
+    localStorage.setItem(WRAP_KEY, value ? '1' : '0')
+  } catch {
+    /* 隐私模式下 localStorage 可能不可写，不影响编辑 */
+  }
+})
+/** 只列阅读页 highlight.js 能真正高亮的语言，选了不该出现的反而误导 */
+const CODE_LANGUAGES = [
+  'bash',
+  'c',
+  'cpp',
+  'csharp',
+  'css',
+  'diff',
+  'dockerfile',
+  'go',
+  'graphql',
+  'html',
+  'ini',
+  'java',
+  'javascript',
+  'json',
+  'kotlin',
+  'less',
+  'lua',
+  'makefile',
+  'markdown',
+  'nginx',
+  'php',
+  'plaintext',
+  'python',
+  'ruby',
+  'rust',
+  'scss',
+  'shell',
+  'sql',
+  'swift',
+  'typescript',
+  'vue',
+  'xml',
+  'yaml',
+].map((value) => ({ value, label: value }))
+
 /** 防止"设 preview.scrollTop → 触发 scroll 事件 → 又反过来改 textarea"的回环 */
 let syncing = false
 
@@ -223,8 +270,13 @@ const TaskListShortcut = Extension.create({
 const LenientCodeBlock = CodeBlock.extend({
   addInputRules() {
     return [
-      // 官方规则要求 ``` 后必须跟空格才触发；放宽成敲完 ``` 直接转
-      textblockTypeInputRule({ find: /^```([a-z]+)?$/, type: this.type }),
+      // 官方规则要求 ``` 后必须跟空格才触发；放宽成敲完 ``` 直接转，
+      // 顺手把 ```python 这种手打的简写记成代码语言
+      textblockTypeInputRule({
+        find: /^```([a-zA-Z0-9+#-]+)?$/,
+        type: this.type,
+        getAttributes: (match) => ({ language: match[1]?.toLowerCase() || null }),
+      }),
     ]
   },
 })
@@ -789,6 +841,29 @@ const richToolbar: ToolDef[] = [
   },
 ]
 
+/** 光标在代码块里时才显示语言选择器；同样挂 tick，选区一动就重算 */
+const inCodeBlock = computed(() => {
+  void tick.value
+  return editor.value?.isActive('codeBlock') ?? false
+})
+const codeLanguage = computed(() => {
+  void tick.value
+  return (editor.value?.getAttributes('codeBlock').language as string | null) ?? ''
+})
+
+function setCodeLanguage(value: string) {
+  if (!editor.value?.isActive('codeBlock')) return
+  editor.value
+    .chain()
+    .focus()
+    .updateAttributes('codeBlock', { language: value || null })
+    .run()
+}
+
+function onLanguageChange(event: Event) {
+  setCodeLanguage((event.target as HTMLSelectElement).value)
+}
+
 /** 工具栏求值都挂着 tick，事务后随响应式刷新；editor 未挂载时一律视为非激活/不可用 */
 function isActive(tool: ToolDef): boolean {
   void tick.value
@@ -900,11 +975,39 @@ function isDisabled(tool: ToolDef): boolean {
               {{ tool.label }}
             </button>
           </template>
+          <!-- 代码块专用：语言标注只在光标位于代码块时出现，避免工具栏常态变长 -->
+          <template v-if="inCodeBlock">
+            <span class="toolbar-sep" />
+            <select
+              class="tool toolbar-lang"
+              :value="codeLanguage"
+              aria-label="代码语言"
+              title="代码语言（写进 ``` 后面，决定阅读页的高亮）"
+              @change="onLanguageChange"
+            >
+              <option value="">纯文本</option>
+              <option v-for="lang in CODE_LANGUAGES" :key="lang.value" :value="lang.value">
+                {{ lang.label }}
+              </option>
+            </select>
+          </template>
+          <span class="toolbar-sep" />
+          <button
+            class="tool"
+            type="button"
+            :class="{ 'is-active': wrapCode }"
+            title="代码块自动换行（只影响编辑时的显示）"
+            aria-label="代码块自动换行"
+            :aria-pressed="wrapCode"
+            @click="wrapCode = !wrapCode"
+          >
+            ↩ 换行
+          </button>
         </div>
 
         <div
           class="frame rich"
-          :class="{ 'is-dragging': dragging }"
+          :class="{ 'is-dragging': dragging, 'code-wrap': wrapCode }"
           @dragover="onDragOver"
           @dragleave="onDragLeave"
           @drop="onDrop"
@@ -1195,6 +1298,33 @@ function isDisabled(tool: ToolDef): boolean {
   border-color: var(--pen);
   border-style: dashed;
   background: var(--pen-soft);
+}
+
+/* 代码块换行：ProseMirror 自带 pre-wrap，会把缩进折得看不成；
+   默认按原样横向滚动，开了开关才折行。只影响编辑区，不碰源码与阅读页。 */
+.frame.rich :deep(pre) {
+  white-space: pre;
+}
+
+.frame.rich :deep(pre code) {
+  white-space: inherit;
+}
+
+.frame.rich.code-wrap :deep(pre) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.toolbar-lang {
+  height: 26px;
+  padding: 0 4px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .drop-hint {
