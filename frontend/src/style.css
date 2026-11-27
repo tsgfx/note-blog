@@ -583,8 +583,15 @@ p {
   color: var(--ink-2);
 }
 
-.code-copy {
+.code-actions {
   justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-copy,
+.code-wrap {
   height: 24px;
   padding: 0 10px;
   border: 1px solid var(--hairline);
@@ -614,6 +621,13 @@ p {
   border-color: var(--danger);
 }
 
+/* 换行开关：逐块生效，按下状态要一眼看得出来 */
+.code-wrap[aria-pressed='true'] {
+  color: var(--pen);
+  border-color: var(--pen-soft);
+  background: var(--pen-soft);
+}
+
 .prose .code-window pre {
   margin: 0;
   padding: 14px 18px;
@@ -622,6 +636,17 @@ p {
   font-size: 13.5px;
   line-height: 1.65;
   overflow: auto;
+}
+
+/* 点了「换行」：长行折行，横向滚动条消失；没点就保持原样 */
+.prose .code-window.is-wrapped pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+}
+
+.prose .code-window.is-wrapped pre code {
+  white-space: inherit;
 }
 
 /* 代码高亮（与纸面配色一致） */

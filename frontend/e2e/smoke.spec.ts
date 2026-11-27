@@ -138,6 +138,13 @@ test.describe('编辑器代码块', () => {
     await page.locator('.mode-switch button', { hasText: 'Markdown' }).click()
     await expect(page.locator('.frame.source textarea')).toHaveValue(/```python/)
 
+    // 展示侧（富文本预览）每个代码块旁边也有「换行」，按块生效
+    const previewWindow = page.locator('.pane .code-window').first()
+    await expect(previewWindow.locator('.code-wrap')).toBeVisible()
+    await expect(previewWindow).not.toHaveClass(/is-wrapped/)
+    await previewWindow.locator('.code-wrap').click()
+    await expect(previewWindow).toHaveClass(/is-wrapped/)
+
     expect(failures, `接口失败：\n${failures.join('\n')}`).toEqual([])
   })
 })

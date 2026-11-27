@@ -25,10 +25,20 @@ export async function writeClipboard(text: string): Promise<boolean> {
   return copied
 }
 
-/** 全局委托：页面里任何代码块的「复制」按钮都能工作，包括 v-html 渲染的内容。 */
+/** 全局委托：页面里任何代码块的「复制 / 换行」按钮都能工作，包括 v-html 渲染的内容。 */
 export function installCodeCopy() {
   document.addEventListener('click', async (event) => {
     const target = event.target as Element | null
+
+    // 自动换行：逐块切换，长行折行后不再需要横向拖动（阅读页与编辑器预览共用）
+    const wrapButton = target?.closest<HTMLButtonElement>('.code-wrap')
+    if (wrapButton) {
+      const windowEl = wrapButton.closest('.code-window')
+      const on = windowEl?.classList.toggle('is-wrapped') ?? false
+      wrapButton.setAttribute('aria-pressed', on ? 'true' : 'false')
+      return
+    }
+
     const button = target?.closest<HTMLButtonElement>('.code-copy')
     if (!button) return
     const code = button.closest('.code-window')?.querySelector('code')?.textContent ?? ''
