@@ -136,3 +136,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Callers retain only their semantic differences: measurement direction, size bounds, mobile breakpoint, storage key, and CSS/reactive application.
 - Avoided copying CSS-owned default widths into TypeScript; the controller uses `null` for the caller-owned default state.
 - Verification: frontend lint, format check, production build, and 49 Node tests passed.
+
+
+### B14 — publish-preflight dialog boundary
+
+- Extracted the preflight modal into `NotePreflightDialog.vue` with a small props/events contract (`open`, `report`, `close`, `confirm(ids)`).
+- Moved exclusion state, warning cleanup, publishable counting, Escape handling, modal markup, and scoped styles into that owner.
+- Extracted blocker/warning/publishable-id decisions into `lib/preflight.ts` so the core rule is testable without mounting Vue.
+- `NotesView` now only fetches the report, opens the dialog, and executes the confirmed batch publish; it shrinks by roughly 330 lines.
+- Verification: frontend lint, format check, production build, and 52 Node tests passed.

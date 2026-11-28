@@ -128,6 +128,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/resizableWidth.ts` and migrated both callers. The controller does not duplicate caller-owned default widths; `null` represents “use the caller’s default”. It also normalizes storage failure handling and unmount cleanup. Added Node tests for drag/clamp/persist/cleanup, restore/reset, and small-viewport behavior. Verification: lint/format/build passed; 49 frontend Node tests passed.
 
+
+### B14 — Publish-preflight dialog boundary ✅ completed
+
+**Entropy:** `NotesView` mixed list loading/selection/batch orchestration with the complete preflight-dialog lifecycle: exclusion state, warning grouping, publishable-id calculation, keyboard close behavior, template, and modal styling.
+
+**Target:** the dialog owns its UI decision workflow; the parent owns only fetching preflight data and executing the confirmed batch publish. Pure publishability rules remain directly testable outside Vue.
+
+**Result:** completed. Added `NotePreflightDialog.vue` and `lib/preflight.ts`. The dialog now owns exclusion state, warning exclusion, publishable count, Escape close, rendering, and scoped modal styles; `NotesView` shrank by about 330 lines and receives only the final confirmed id list. Added pure tests for blocker/warning/publishable rules. Verification: lint/format/build passed; 52 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
