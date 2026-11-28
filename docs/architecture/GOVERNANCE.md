@@ -162,3 +162,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Monitoring degradation semantics remain local to the probes: missing Ollama config falls back to localhost; external failures still return false rather than breaking application startup or health reporting.
 - Added local HTTP-server tests covering endpoint selection, trailing-slash normalization, auth propagation, and failure containment.
 - Verification: full backend suite passed (286 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### F10 — markdown source-edit ownership
+
+- Added `frontend/src/lib/sourceTextEdit.ts` as the canonical owner of pure Markdown source-editing transformations.
+- `NoteEditorView` now owns only textarea measurement, focus, and selection restoration through one adapter.
+- Preserved historical edge semantics, including leading newline insertion, placeholder selection, idempotent line prefixes, and partial-line replacement behavior.
+- Verification: 58/58 frontend Node tests passed; lint, format check, and production build passed.

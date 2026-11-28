@@ -30,6 +30,7 @@ import {
   type NoteInput,
 } from '../api/notes'
 import { clearEditorDraft, editorDraftId, loadEditorDraft, writeEditorDraft } from '../lib/editorDraft'
+import { insertBlockAtCursor, prefixSelectedLines, surroundSelection, type TextEditResult } from '../lib/sourceTextEdit'
 import { confirmAction, notify } from '../lib/feedback'
 import { renderMarkdown } from '../lib/markdown'
 
@@ -608,51 +609,31 @@ async function onDrop(event: DragEvent) {
 
 /* ───────── 源码模式的文本操作 ───────── */
 
-function insertAtCursor(text: string) {
+function applySourceEdit(edit: (value: string, start: number, end: number) => TextEditResult) {
   const el = bodyEl.value
   const start = el?.selectionStart ?? contentMd.value.length
   const end = el?.selectionEnd ?? start
-  const before = contentMd.value.slice(0, start)
-  const after = contentMd.value.slice(end)
-  const lead = before && !before.endsWith('\n') ? '\n' : ''
-  const insert = `${lead}${text}\n`
-  contentMd.value = before + insert + after
+  const result = edit(contentMd.value, start, end)
+  contentMd.value = result.value
   nextTick(() => {
     if (!el) return
     el.focus()
-    const caret = before.length + insert.length
-    el.setSelectionRange(caret, caret)
+    el.setSelectionRange(result.selectionStart, result.selectionEnd)
   })
+}
+
+function insertAtCursor(text: string) {
+  applySourceEdit((value, start, end) => insertBlockAtCursor(value, start, end, text))
 }
 
 /** 用标记包住选区；没有选区就插入占位文字并选中它，方便直接改写 */
 function surround(before: string, after: string, placeholder: string) {
-  const el = bodyEl.value
-  const start = el?.selectionStart ?? contentMd.value.length
-  const end = el?.selectionEnd ?? start
-  const picked = contentMd.value.slice(start, end) || placeholder
-  contentMd.value = contentMd.value.slice(0, start) + before + picked + after + contentMd.value.slice(end)
-  nextTick(() => {
-    if (!el) return
-    el.focus()
-    el.setSelectionRange(start + before.length, start + before.length + picked.length)
-  })
+  applySourceEdit((value, start, end) => surroundSelection(value, start, end, before, after, placeholder))
 }
 
 /** 按行加前缀（标题、列表、引用都是这个模式） */
 function prefixLines(prefix: string) {
-  const el = bodyEl.value
-  const start = el?.selectionStart ?? contentMd.value.length
-  const end = el?.selectionEnd ?? start
-  const lineStart = contentMd.value.lastIndexOf('\n', start - 1) + 1
-  const block = contentMd.value.slice(lineStart, end) || ''
-  const lines = block.split('\n')
-  const next = lines.map((line) => (line.startsWith(prefix) ? line : `${prefix}${line}`)).join('\n')
-  contentMd.value = contentMd.value.slice(0, lineStart) + next + contentMd.value.slice(end)
-  nextTick(() => {
-    el?.focus()
-    el?.setSelectionRange(lineStart, lineStart + next.length)
-  })
+  applySourceEdit((value, start, end) => prefixSelectedLines(value, start, end, prefix))
 }
 
 const sourceToolbar: { label: string; title: string; run: () => void }[] = [
