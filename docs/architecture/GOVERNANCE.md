@@ -206,3 +206,19 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - The Vue view still owns DOM focus, scrolling, selection mutation, and route navigation.
 - Preserved modal interception, typing behavior, modifier exclusion, focused-row requirements, and Escape semantics.
 - Verification: 61/61 frontend Node tests passed; lint, format check, and production build passed.
+
+
+### B20 — shared note series taxonomy
+
+- Added `NoteTaxonomy.seriesName` as the single owner of `专栏:` / `系列:` tag interpretation.
+- Migrated both backlink and related-note recommendation consumers.
+- Preserved Backlink's separate source-folder fallback rather than merging distinct semantics.
+- Verification: full backend suite passed (289 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B20 — shared note series taxonomy
+
+- Added `NoteTaxonomy.seriesName` as the single owner of `专栏:` / `系列:` tag interpretation.
+- Migrated both backlink and related-note recommendation consumers.
+- Preserved the distinct Backlink source-folder fallback rather than merging different semantics.
+- Verification: full backend suite passed (289 tests, 0 failures/errors, 2 Docker-dependent skips).

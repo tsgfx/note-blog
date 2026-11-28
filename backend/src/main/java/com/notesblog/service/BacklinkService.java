@@ -167,14 +167,8 @@ public class BacklinkService {
      */
     private static String extractSeries(Note note) {
         if (note == null) return null;
-        if (note.getTags() != null) {
-            for (Tag tag : note.getTags()) {
-                String name = tag.getName();
-                if (name != null && (name.startsWith("专栏:") || name.startsWith("系列:"))) {
-                    return name.replaceFirst("^(专栏|系列):", "").trim();
-                }
-            }
-        }
+        String series = NoteTaxonomy.seriesName(note);
+        if (series != null) return series;
         String source = note.getSourcePath();
         if (source != null) {
             String[] parts = source.split("/");

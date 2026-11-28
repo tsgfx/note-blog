@@ -88,7 +88,7 @@ public class RelatedNoteService {
 
         Note currentNote = noteRepository.findById(noteId).orElse(null);
         Set<String> currentTags = extractTags(currentNote);
-        String currentSeries = extractSeries(currentNote);
+        String currentSeries = NoteTaxonomy.seriesName(currentNote);
         String currentCategory = currentNote != null ? extractCategory(currentNote.getSourcePath()) : "";
 
         // 3. 多路特征综合打分
@@ -109,7 +109,7 @@ public class RelatedNoteService {
 
             double vectorSim = entry.getValue();
             Set<String> candidateTags = extractTags(note);
-            String candidateSeries = extractSeries(note);
+            String candidateSeries = NoteTaxonomy.seriesName(note);
             String candidateCategory = extractCategory(note.getSourcePath());
 
             double tagJaccard = 0.0;
@@ -200,19 +200,6 @@ public class RelatedNoteService {
             set.add(tag.getName().toLowerCase());
         }
         return set;
-    }
-
-    static String extractSeries(Note note) {
-        if (note == null || note.getTags() == null) {
-            return null;
-        }
-        for (Tag tag : note.getTags()) {
-            String name = tag.getName();
-            if (name.startsWith("专栏:") || name.startsWith("系列:")) {
-                return name.substring(3).trim();
-            }
-        }
-        return null;
     }
 
     static String extractCategory(String sourcePath) {

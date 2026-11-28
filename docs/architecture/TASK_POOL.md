@@ -182,6 +182,13 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added package-private `NotificationPayloadFormatter`, moved all provider detection/schema generation there, removed the leaked public `buildPayloadJson` service method, and migrated payload tests to the formatter. `NotificationService` no longer stores an unused ObjectMapper and now owns only enablement, URL construction, async execution, transport, and failure containment. Also corrected the disabled-webhook test to assert against the actual synchronous transport method. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B20 — Shared note series taxonomy ✅ completed
+
+**Entropy:** `BacklinkService` and `RelatedNoteService` each implemented the same domain rule for interpreting `专栏:` / `系列:` tags, while Backlink additionally owned a separate folder fallback. The duplicate definition could drift even though both services rely on the same taxonomy concept.
+
+**Result:** completed. Added package-private `NoteTaxonomy.seriesName` as the single owner of series-tag interpretation. Both services migrated; Backlink retains its distinct folder fallback. Added direct taxonomy tests. Verification: full backend suite passed, 289 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
