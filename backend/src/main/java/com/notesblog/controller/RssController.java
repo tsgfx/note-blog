@@ -9,7 +9,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,15 +26,12 @@ public class RssController {
     private final PublicBlogService publicBlogService;
     private final SiteUrls siteUrls;
 
-    /** 订阅源最多输出多少条。RSS 阅读器不适合塞整站内容，所以给个上限，但不再是散落的魔法数字。 */
-    @Value("${app.rss.max-items:50}")
-    private int maxItems;
 
     @GetMapping(value = {"/rss.xml", "/feed.xml", "/atom.xml"}, produces = "application/rss+xml;charset=UTF-8")
     @Transactional(readOnly = true)
     public String feed() {
         String base = siteUrls.base();
-        List<PublicBlogService.FeedItem> posts = publicBlogService.feedItems(maxItems);
+        List<PublicBlogService.FeedItem> posts = publicBlogService.feedItems();
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<rss version=\"2.0\"><channel>\n")

@@ -43,4 +43,9 @@ class LayeringArchitectureTest {
             .that().resideOutsideOfPackages("..common..")
             .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.transaction.support.TransactionSynchronizationManager")
             .as("post-commit side effects are owned by TransactionSideEffects");
+    @ArchTest
+    static final ArchRule controllers_do_not_own_configuration_values = noClasses()
+            .that().resideInAPackage("..controller..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.beans.factory.annotation.Value")
+            .as("configuration ownership belongs below the HTTP edge");
 }

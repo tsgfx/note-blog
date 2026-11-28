@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,16 +35,13 @@ public class SitemapController {
     private final PublicBlogService publicBlogService;
     private final SiteUrls siteUrls;
 
-    /** sitemap 单文件上限按协议是 5 万条，这里给个可配的保守值，免得站点长大后撑爆。 */
-    @Value("${app.sitemap.max-items:5000}")
-    private int maxItems;
 
     @GetMapping(value = "/sitemap.xml", produces = "application/xml;charset=UTF-8")
     @Transactional(readOnly = true)
     public String sitemap() {
         // 只取 slug 与时间三列：sitemap 一条记录用不到正文，
         // 没必要把几百篇 MEDIUMTEXT 读进内存。
-        List<PublicBlogService.PublishedRef> posts = publicBlogService.sitemapRefs(maxItems);
+        List<PublicBlogService.PublishedRef> posts = publicBlogService.sitemapRefs();
 
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")

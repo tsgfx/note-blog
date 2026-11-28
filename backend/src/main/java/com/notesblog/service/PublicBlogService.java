@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +39,14 @@ public class PublicBlogService {
     private final NoteRepository noteRepository;
     private final NoteCatalogService noteCatalogService;
     private final RelatedNoteService relatedNoteService;
+
+    /** RSS 输出上限。属于公开读模型规模语义，不属于 HTTP 序列化边缘。 */
+    @Value("${app.rss.max-items:50}")
+    private int rssMaxItems;
+
+    /** sitemap 输出上限。属于公开读模型规模语义，不属于 HTTP 序列化边缘。 */
+    @Value("${app.sitemap.max-items:5000}")
+    private int sitemapMaxItems;
 
     /** 公开文章列表。tag/keyword 任一空则走发布态分页；带筛选时复用统一的笔记查询规格。 */
     public Page<NoteSummaryDto> posts(String tag, String keyword, String sort, int page, int size) {
@@ -106,9 +115,9 @@ public class PublicBlogService {
                 noteRepository.findLatestPublishedAt(NoteStatus.PUBLISHED));
     }
 
-    /** RSS/feed 使用的公开文章读模型。数量上限由调用方按配置传入。 */
-    public List<FeedItem> feedItems(int maxItems) {
-        int limit = Math.max(maxItems, 1);
+    /** RSS/feed 使用的公开文章读模型。 */
+    public List<FeedItem> feedItems() {
+        int limit = Math.max(rssMaxItems, 1);
         return noteRepository
                 .findByStatus(
                         NoteStatus.PUBLISHED,
@@ -119,8 +128,8 @@ public class PublicBlogService {
     }
 
     /** sitemap 使用的公开文章引用。投影只含 slug 与时间，避免把正文读进内存。 */
-    public List<PublishedRef> sitemapRefs(int maxItems) {
-        int limit = Math.max(maxItems, 1);
+    public List<PublishedRef> sitemapRefs() {
+        int limit = Math.max(sitemapMaxItems, 1);
         return noteRepository.findPublishedRefs(NoteStatus.PUBLISHED, PageRequest.of(0, limit)).stream()
                 .map(row -> new PublishedRef(row.getSlug(), row.getUpdatedAt(), row.getPublishedAt()))
                 .toList();

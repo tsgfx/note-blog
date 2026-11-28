@@ -253,3 +253,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `NoteEditorView` no longer manipulates those raw keys directly.
 - Added source-scan guard preventing both keys from reappearing outside the owner.
 - Verification: 66/66 frontend Node tests passed; lint, format check, and production build passed.
+
+
+### B22 — syndication limit ownership
+
+- Moved RSS/sitemap max-item configuration ownership from controllers into `PublicBlogService`.
+- `feedItems()` and `sitemapRefs()` are now complete read-model operations rather than parameterized leaks of HTTP-edge configuration.
+- Controllers no longer use `@Value`; added an ArchUnit guard keeping configuration ownership below the HTTP edge.
+- Verification: full backend suite passed before the test-only guard addition (292 tests, 0 failures/errors, 2 Docker-dependent skips); guard and affected controller tests passed afterward.

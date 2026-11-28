@@ -203,6 +203,13 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added an ArchUnit rule making `TransactionSideEffects` the sole production-code owner of transaction synchronization mechanics. Verification: full backend suite passed, 292 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B22 — Syndication limit ownership ✅ completed
+
+**Entropy:** RSS and sitemap item limits were injected and applied at the HTTP controller edge even though feed/sitemap size is part of the public content read-model boundary. Controllers also still carried configuration ownership after earlier read-model extraction.
+
+**Result:** completed. `PublicBlogService` now owns `app.rss.max-items` and `app.sitemap.max-items`, exposes no-arg `feedItems()` / `sitemapRefs()`, and controllers only serialize XML. Defaults and behavior are unchanged. Added an ArchUnit guard preventing controllers from depending on `@Value`, making configuration ownership below the HTTP edge machine-enforceable. Verification: full backend suite passed before the test-only guard addition (292 tests, 0 failures/errors, 2 Docker-dependent skips); guard and affected controller tests passed afterward.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
