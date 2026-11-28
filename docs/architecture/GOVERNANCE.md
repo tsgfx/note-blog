@@ -29,3 +29,10 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Kept `api/account.ts#getMe` as a documented exception because it intentionally avoids the global 401 redirect.
 - Verification: `npm run lint`, `npm run format:check`, `npm run build`, and 28 Node unit tests passed.
 - Follow-up constraint candidate: prevent new direct `http.*` usage outside `api/client.ts` unless explicitly justified.
+
+
+### B1-follow-up — enforce canonical API client
+
+- Added ESLint architecture guards preventing business modules from importing `axios` directly or importing the internal `http` object from `api/client.ts`.
+- The intentional `fetch` in `api/account.ts#getMe` remains allowed because it is not an Axios bypass and exists specifically to avoid global 401 redirect side effects.
+- Verification: `npm run lint` passed.

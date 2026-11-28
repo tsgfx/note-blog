@@ -41,6 +41,32 @@ export default [
     },
   },
   {
+    files: ['src/**/*.{ts,vue}'],
+    ignores: ['src/api/client.ts'],
+    rules: {
+      // API 响应解包与鉴权拦截只能由 api/client.ts 拥有。
+      // api/account.ts#getMe 使用原生 fetch 是 documented exception：它不是 axios，也不绕过这条规则。
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'axios',
+              message: '请使用 src/api/client.ts 暴露的 get/post/patch/del；不要在业务模块直接引入 axios。',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportDeclaration[source.value=/client$/] > ImportSpecifier[imported.name='http']",
+          message: 'http 是 API 客户端内部实现；业务模块请使用 get/post/patch/del。',
+        },
+      ],
+    },
+  },
+  {
     files: ['*.config.{js,ts}', 'vite.config.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
