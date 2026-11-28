@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { isoDate } from '../lib/date'
 import { recordReadingHistory as rememberReadingHistory } from '../lib/readHistory'
+import { claimPostView } from '../lib/viewCounter'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   generateNoteMeta,
@@ -92,13 +93,7 @@ const charCount = computed(() => (note.value?.contentMd ?? '').replace(/\s+/g, '
 const readMinutes = computed(() => Math.max(1, Math.round(charCount.value / 400)))
 
 function recordViewOnce(slug: string) {
-  const key = `blog_viewed_${slug}`
-  try {
-    if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, '1')
-  } catch {
-    // 忽略私密模式或禁用 storage
-  }
+  if (!claimPostView(slug)) return
   recordPostView(slug)
     .then((res) => {
       if (note.value && res.viewCount != null) {

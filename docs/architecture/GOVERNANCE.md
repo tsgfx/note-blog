@@ -237,3 +237,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Added an ArchUnit rule preventing production code outside `common` from depending directly on `TransactionSynchronizationManager`.
 - This makes the B21 post-commit side-effect boundary machine-enforceable rather than convention-only.
 - Verification: full backend suite passed (292 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### F12 — post-view claiming ownership
+
+- Added `frontend/src/lib/viewCounter.ts` as the sole owner of `blog_viewed_` session claiming.
+- `NoteDetailView` now asks the canonical owner whether a view should be reported instead of manipulating session keys inline.
+- Added source-scan guard preventing the raw key prefix from reappearing outside the owner.
+- Verification: 63/63 frontend Node tests passed; lint, format check, and production build passed.
