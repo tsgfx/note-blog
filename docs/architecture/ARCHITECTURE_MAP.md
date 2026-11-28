@@ -48,17 +48,18 @@ Backend production code:
 
 | package | files | lines | observed role |
 |---|---:|---:|---|
-| `service` | 38 | 4852 | most business complexity |
-| `controller` | 16 | 1500 | REST endpoints, some business/data-access leakage |
-| `config` | 11 | 982 | security, rate limiting, schema bootstrap |
+| `service` | 40 | 5078 | most business complexity; now split into public/catalog/write-oriented services |
+| `controller` | 16 | 1361 | REST endpoints; repository access removed |
+| `config` | 12 | 1029 | security, rate limiting, schema bootstrap, canonical public URLs |
 | `dto` | 33 | 749 | API contracts |
 | `repository` | 7 | 403 | persistence queries |
 | `domain` | 9 | 363 | entities/enums |
-| `common` | 4 | 163 | response/error infrastructure |
+| `common` | 5 | 176 | response/error and XML infrastructure |
 
 Largest backend complexity centers:
 
-- `NoteService` (540 lines): list/filter, CRUD, publishing, folder/library/tag aggregation, indexing orchestration.
+- `NoteService` (329 lines): write lifecycle, publishing, batch operations, indexing orchestration.
+- `NoteCatalogService` (245 lines): list/filter specifications, folder/library/tag navigation, admin detail reads.
 - `SchemaUpgrade` (300 lines): startup schema compatibility.
 - `RecommendationService` (297), `RelatedNoteService` (267): vector/behavioral recommendation logic.
 - `NoteRepository` (250 lines): complex JPQL/native queries.

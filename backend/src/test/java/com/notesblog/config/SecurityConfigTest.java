@@ -47,6 +47,8 @@ class SecurityConfigTest {
     @MockitoBean
     private NoteService noteService;
     @MockitoBean
+    private com.notesblog.service.NoteCatalogService noteCatalogService;
+    @MockitoBean
     private com.notesblog.service.NoteMetaService noteMetaService;
     @MockitoBean
     private com.notesblog.service.NoteMetaBatchService noteMetaBatchService;

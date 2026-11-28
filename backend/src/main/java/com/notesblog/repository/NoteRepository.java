@@ -173,7 +173,7 @@ public interface NoteRepository extends JpaRepository<Note, Long>, JpaSpecificat
      *
      * <p>只回两列（标签名 + sourcePath），1575 行左右，很小。
      * **不在 SQL 里按库分组**：库名是「sourcePath 第一段」，那条折算规则在
-     * {@link com.notesblog.service.NoteService#libraryOf} 里，SQL 里再写一遍必然跑偏。
+     * {@link com.notesblog.service.NoteCatalogService#libraryOf} 里，SQL 里再写一遍必然跑偏。
      *
      * @param status 限定状态，null 为不限
      */

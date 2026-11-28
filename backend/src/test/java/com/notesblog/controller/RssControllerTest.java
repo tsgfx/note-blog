@@ -41,7 +41,7 @@ class RssControllerTest {
     @MockitoBean
     private NoteRepository noteRepository;
     @MockitoBean
-    private com.notesblog.service.NoteService noteService;
+    private com.notesblog.service.NoteCatalogService noteCatalogService;
     @MockitoBean
     private com.notesblog.service.RelatedNoteService relatedNoteService;
     // 切片会扫到 JwtAuthFilter 与主启动类的 seedAdmin，即使关了过滤器也要满足它们的依赖

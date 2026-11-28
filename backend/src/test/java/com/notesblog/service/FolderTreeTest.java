@@ -64,7 +64,7 @@ class FolderTreeTest {
         List<FolderNodeDto> tree = FolderTree.build(counts);
 
         assertThat(tree).extracting(FolderNodeDto::name)
-                .containsExactly("c++", NoteService.LIBRARY_ROOT, NoteService.LIBRARY_UNFILED);
+                .containsExactly("c++", NoteCatalogService.LIBRARY_ROOT, NoteCatalogService.LIBRARY_UNFILED);
         FolderNodeDto root = tree.get(1);
         assertThat(root.count()).isEqualTo(5);
         assertThat(root.children()).isEmpty();

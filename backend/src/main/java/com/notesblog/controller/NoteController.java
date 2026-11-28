@@ -19,6 +19,7 @@ import com.notesblog.dto.ReindexReportDto;
 import com.notesblog.dto.UpdateNoteRequest;
 import jakarta.validation.Valid;
 import com.notesblog.service.BacklinkService;
+import com.notesblog.service.NoteCatalogService;
 import com.notesblog.service.NoteMetaBatchService;
 import com.notesblog.service.NoteMetaService;
 import com.notesblog.service.NoteService;
@@ -46,6 +47,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class NoteController {
 
     private final NoteService noteService;
+    private final NoteCatalogService noteCatalogService;
     private final NoteMetaService noteMetaService;
     private final NoteMetaBatchService noteMetaBatchService;
     private final RelatedNoteService relatedNoteService;
@@ -72,7 +74,7 @@ public class NoteController {
         Pageable pageable = PageRequest.of(safePage, safeSize, adminSort(sort));
         // library 是 path 的旧名字（只支持第一段），保留是为了旧的链接和书签不断
         String scope = (path != null && !path.isBlank()) ? path : library;
-        return ApiResponse.ok(noteService.list(status, scope, keyword, tag, stale, pageable));
+        return ApiResponse.ok(noteCatalogService.list(status, scope, keyword, tag, stale, pageable));
     }
 
     /**
@@ -94,7 +96,7 @@ public class NoteController {
     /** 左侧「库」导航：库名与篇数。字面量路径，不会被 /{slug} 抢走。 */
     @GetMapping("/libraries")
     public ApiResponse<List<LibraryCountDto>> libraries() {
-        return ApiResponse.ok(noteService.libraries());
+        return ApiResponse.ok(noteCatalogService.libraries());
     }
 
     /**
@@ -105,7 +107,7 @@ public class NoteController {
      */
     @GetMapping("/folders")
     public ApiResponse<List<FolderNodeDto>> folders(@RequestParam(required = false) NoteStatus status) {
-        return ApiResponse.ok(noteService.folders(status));
+        return ApiResponse.ok(noteCatalogService.folders(status));
     }
 
     /**
@@ -120,12 +122,12 @@ public class NoteController {
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String library) {
         String scope = (path != null && !path.isBlank()) ? path : library;
-        return ApiResponse.ok(noteService.tagFacets(status, scope));
+        return ApiResponse.ok(noteCatalogService.tagFacets(status, scope));
     }
 
     @GetMapping("/{slug}")
     public ApiResponse<NoteDetailDto> detail(@PathVariable String slug) {
-        return ApiResponse.ok(noteService.getBySlug(slug));
+        return ApiResponse.ok(noteCatalogService.getBySlug(slug));
     }
 
     /**

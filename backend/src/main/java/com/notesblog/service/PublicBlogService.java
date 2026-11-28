@@ -36,7 +36,7 @@ public class PublicBlogService {
     public static final int DEFAULT_PAGE_SIZE = 20;
 
     private final NoteRepository noteRepository;
-    private final NoteService noteService;
+    private final NoteCatalogService noteCatalogService;
     private final RelatedNoteService relatedNoteService;
 
     /** 公开文章列表。tag/keyword 任一空则走发布态分页；带筛选时复用统一的笔记查询规格。 */
@@ -51,7 +51,7 @@ public class PublicBlogService {
         List<String> tags = (tag != null && !tag.isBlank()) ? List.of(tag.trim()) : null;
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
         if (tags != null || kw != null) {
-            return noteService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable);
+            return noteCatalogService.list(NoteStatus.PUBLISHED, null, kw, tags, pageable);
         }
         return noteRepository.findByStatus(NoteStatus.PUBLISHED, pageable).map(NoteSummaryDto::from);
     }

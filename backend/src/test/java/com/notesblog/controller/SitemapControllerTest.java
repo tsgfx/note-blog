@@ -38,7 +38,7 @@ class SitemapControllerTest {
     @MockitoBean
     private NoteRepository noteRepository;
     @MockitoBean
-    private com.notesblog.service.NoteService noteService;
+    private com.notesblog.service.NoteCatalogService noteCatalogService;
     @MockitoBean
     private com.notesblog.service.RelatedNoteService relatedNoteService;
     @MockitoBean

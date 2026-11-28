@@ -47,7 +47,7 @@ class PublicBlogControllerTest {
     @MockitoBean
     private NoteRepository noteRepository;
     @MockitoBean
-    private com.notesblog.service.NoteService noteService;
+    private com.notesblog.service.NoteCatalogService noteCatalogService;
     @MockitoBean
     private com.notesblog.service.RelatedNoteService relatedNoteService;
     @MockitoBean
@@ -244,15 +244,15 @@ class PublicBlogControllerTest {
     }
 
     @Test
-    @DisplayName("带标签筛选时委托给 NoteService 处理")
+    @DisplayName("带标签筛选时委托给笔记目录读模型处理")
     void postsWithTagDelegatesToService() throws Exception {
-        when(noteService.list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class)))
+        when(noteCatalogService.list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/blog/posts?tag=C语言"))
                 .andExpect(status().isOk());
 
-        verify(noteService).list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class));
+        verify(noteCatalogService).list(eq(NoteStatus.PUBLISHED), any(), any(), eq(List.of("C语言")), any(Pageable.class));
     }
 
     @Test

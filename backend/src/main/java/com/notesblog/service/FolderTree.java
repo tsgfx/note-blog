@@ -41,8 +41,8 @@ public final class FolderTree {
             if (folders.isEmpty()) {
                 // 没有目录层级：null → 未归档，有文件名 → 根目录
                 String bucket = (sourcePath == null || sourcePath.isBlank())
-                        ? NoteService.LIBRARY_UNFILED
-                        : NoteService.LIBRARY_ROOT;
+                        ? NoteCatalogService.LIBRARY_UNFILED
+                        : NoteCatalogService.LIBRARY_ROOT;
                 pseudo.merge(bucket, count, Long::sum);
                 continue;
             }
@@ -66,7 +66,7 @@ public final class FolderTree {
         result.sort(BY_COUNT_DESC);
 
         // 伪节点不是真实目录，按固定顺序挂在最后，避免跟真实目录抢排序
-        for (String bucket : List.of(NoteService.LIBRARY_ROOT, NoteService.LIBRARY_UNFILED)) {
+        for (String bucket : List.of(NoteCatalogService.LIBRARY_ROOT, NoteCatalogService.LIBRARY_UNFILED)) {
             Long count = pseudo.get(bucket);
             if (count != null) {
                 result.add(new FolderNodeDto(bucket, bucket, count, List.of()));
@@ -79,7 +79,7 @@ public final class FolderTree {
      * 取出 sourcePath 的目录部分（去掉文件名）。
      *
      * <p>「c++/项目A/指针.md」→ [c++ 项目A]；「单一文件.md」→ []；
-     * 开头的斜杠会被忽略（与 {@link NoteService#libraryOf} 的判断保持一致）。
+     * 开头的斜杠会被忽略（与 {@link NoteCatalogService#libraryOf} 的判断保持一致）。
      */
     static List<String> foldersOf(String sourcePath) {
         if (sourcePath == null || sourcePath.isBlank()) return List.of();

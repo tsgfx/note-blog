@@ -61,3 +61,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Migrated RSS, sitemap, robots, and comment notification links; removed parallel trailing-slash/XML escaping implementations.
 - Explicitly did not migrate `InboxService` quick-capture endpoint construction because API endpoint URLs and public article URLs are semantically different despite often sharing a deployed origin.
 - Verification: full backend suite passed; focused controller/service/config tests passed.
+
+
+### B5 — note catalog/write boundary
+
+- Extracted `NoteCatalogService` as the owner of note list filtering, path/library semantics, tag facets, folder navigation, library aggregation, and admin detail reads.
+- Kept write lifecycle, publication transitions, batch operations, audit, and index invalidation/rebuild coordination in `NoteService` because those behaviors share transaction side effects.
+- Migrated `NoteController` and `PublicBlogService` so public filtered reads depend on the catalog service rather than the write service.
+- Updated `FolderTree`, repository documentation, controller tests, and focused service tests; `NoteLibraryTest` now tests the catalog service with only `NoteRepository` as a dependency.
+- Verification: full backend suite passed (276 tests, 0 failures/errors, 2 Docker-dependent skips).

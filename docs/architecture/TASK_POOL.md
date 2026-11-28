@@ -47,11 +47,20 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `config/SiteUrls` and `common/XmlEscape`; migrated RSS, sitemap, robots, and comment notification links. `InboxService` intentionally remains separate because it builds an API endpoint example, not a public article URL. Verification: full backend suite passed.
 
+
+### B5 — Note catalog/write boundary ✅ completed
+
+**Entropy:** `NoteService` mixed read-side catalog filtering and navigation aggregation with write lifecycle, publication state transitions, batch operations, and index side effects.
+
+**Target:** extract one cohesive catalog read module without scattering transaction/index semantics.
+
+**Result:** completed. Added `NoteCatalogService` for list filtering, folder/library/tag navigation, and admin detail reads. `NoteService` now owns write lifecycle, publish/unpublish, batch operations, and indexing side effects. `PublicBlogService` depends only on the catalog read service for filtered public posts. Verification: full backend suite passed, 276 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
-### R1 — NoteService responsibility boundaries
+### R1 — Remaining NoteService responsibility boundaries
 
-Possible seams: query/filtering, write lifecycle, publishing lifecycle, navigation aggregations, indexing orchestration. Must map callers and transaction semantics before splitting.
+Catalog/read navigation has been extracted. Remaining seams: write lifecycle vs publishing lifecycle vs indexing orchestration/batch operations. Must map transaction synchronization and async indexing callers before any further split.
 
 ### R2 — Giant Vue views
 
