@@ -1,15 +1,12 @@
 package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
-import com.notesblog.domain.User;
 import com.notesblog.dto.ChangePasswordRequest;
 import com.notesblog.dto.MeResponse;
-import com.notesblog.repository.UserRepository;
 import com.notesblog.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,10 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AccountController {
 
-    private static final String ROLE_PREFIX = "ROLE_";
-
     private final AuthService authService;
-    private final UserRepository userRepository;
 
     /**
      * 当前登录者的身份摘要。
@@ -42,17 +36,7 @@ public class AccountController {
      */
     @GetMapping("/me")
     public ApiResponse<MeResponse> me(Authentication authentication) {
-        String username = authentication.getName();
-        String role = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .filter(authority -> authority != null && authority.startsWith(ROLE_PREFIX))
-                .map(authority -> authority.substring(ROLE_PREFIX.length()))
-                .findFirst()
-                .orElse("");
-        String displayName = userRepository.findByUsername(username)
-                .map(User::getDisplayName)
-                .orElse(null);
-        return ApiResponse.ok(new MeResponse(username, displayName, role));
+        return ApiResponse.ok(authService.me(authentication.getName(), authentication.getAuthorities()));
     }
 
     @PostMapping("/password")

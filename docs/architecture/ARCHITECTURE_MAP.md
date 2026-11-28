@@ -89,20 +89,12 @@ These files mix route orchestration, remote state, local UI state, formatting, a
 
 ### Cross-layer violations / leaks
 
-Controllers currently import repositories directly:
-
-- `AccountController -> UserRepository` for display name lookup;
-- `PublicBlogController -> NoteRepository` for unfiltered posts, detail, stats, adjacent posts;
-- `RssController -> NoteRepository` for feed items;
-- `SitemapController -> NoteRepository` for published refs.
-
-This makes HTTP controllers part data-access layer and spreads publication query rules across endpoints.
+Initially controllers imported repositories directly (`AccountController -> UserRepository`, public blog/RSS/sitemap controllers -> `NoteRepository`). Batch B3 removed these violations: controllers no longer import repositories, and `LayeringArchitectureTest` now fails the build if that coupling returns.
 
 ### Duplicate implementations already confirmed
 
 - XML escaping duplicated in `RssController` and `SitemapController`.
 - trailing-slash normalization of `site.base-url` duplicated in `RssController` and `SitemapController`.
-- frontend API unwrap logic duplicated in `api/notes.ts` even though `api/client.ts` already owns `get/post/patch/del` unwrapping.
 - date formatting/slicing duplicated across `BlogView`, `HomeView`, `NotesView`, `NoteDetailView`, `SettingsView`, `ShareQuoteModal`.
 - `library` / `path` compatibility exists intentionally in backend and frontend API comments; it is a contract compatibility layer, not accidental duplication, but its ownership should remain explicit.
 
@@ -134,14 +126,13 @@ High value / high caution:
 
 1. Splitting or clarifying `NoteService` responsibilities without breaking publication/index side effects.
 2. Reducing giant Vue views into domain-oriented composables/components while preserving exact UX behavior.
-3. Centralizing public-blog read models/query rules currently spread across controllers/repository.
 4. Configuration ownership and deployment contract normalization.
 
 High value / low risk first batches:
 
 1. Canonicalize frontend API unwrapping through `api/client.ts` and delete duplicated manual unwrap code.
 2. Canonicalize date formatting helpers and migrate all display call sites.
-3. Move public-blog read query ownership out of controllers into a deep service/repository-facing module.
+3. Clarify `NoteService` responsibility boundaries before extracting larger write/publish modules.
 4. Canonicalize site URL normalization and XML escaping where RSS/sitemap share semantics.
 
 Do not start with:

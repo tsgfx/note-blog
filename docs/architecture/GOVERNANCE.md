@@ -36,3 +36,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Added ESLint architecture guards preventing business modules from importing `axios` directly or importing the internal `http` object from `api/client.ts`.
 - The intentional `fetch` in `api/account.ts#getMe` remains allowed because it is not an Axios bypass and exists specifically to avoid global 401 redirect side effects.
 - Verification: `npm run lint` passed.
+
+
+### B3 — public read ownership and repository layering
+
+- Added `PublicBlogService` as the authoritative public-content boundary: published-only filtering, public pagination/sorting limits, detail adjacent-post composition, tag/stat aggregation, feed/sitemap read models, related-post visibility checks, and PV writes.
+- Migrated `PublicBlogController`, `RssController`, and `SitemapController` away from `NoteRepository`; RSS no longer receives JPA entities at the HTTP edge.
+- Moved account identity composition into `AuthService`; `AccountController` no longer uses `UserRepository`.
+- Added ArchUnit enforcement: controllers must not depend on repositories, and repositories may only be used from service/repository code.
+- Verification: full backend suite passed (273 tests, 0 failures/errors, 2 Docker-dependent skips); `git diff --check` clean.

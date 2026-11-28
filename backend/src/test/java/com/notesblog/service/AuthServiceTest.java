@@ -14,6 +14,7 @@ import com.notesblog.dto.ChangePasswordRequest;
 import com.notesblog.dto.LoginRequest;
 import com.notesblog.dto.LoginResponse;
 import com.notesblog.repository.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -120,6 +122,30 @@ class AuthServiceTest {
         assertThat(passwordEncoder.matches(next, saved.getValue().getPasswordHash())).isTrue();
         verify(tokenVersionService).revokeAll("admin");
         verify(auditService).record("PASSWORD_CHANGE", "admin", null);
+    }
+
+    @Test
+    @DisplayName("当前身份：显示名来自用户表，ROLE_ 前缀被去掉")
+    void meCombinesDisplayNameAndTokenRole() {
+        admin.setDisplayName("郭瑞超");
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
+
+        var me = service.me("admin", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+        assertThat(me.username()).isEqualTo("admin");
+        assertThat(me.displayName()).isEqualTo("郭瑞超");
+        assertThat(me.role()).isEqualTo("ADMIN");
+    }
+
+    @Test
+    @DisplayName("当前身份：用户行缺失时不把有效令牌打成 404，只省略显示名")
+    void meToleratesMissingUserRow() {
+        when(userRepository.findByUsername("viewer")).thenReturn(Optional.empty());
+
+        var me = service.me("viewer", List.of(new SimpleGrantedAuthority("ROLE_VIEWER")));
+
+        assertThat(me.displayName()).isNull();
+        assertThat(me.role()).isEqualTo("VIEWER");
     }
 
     @Test

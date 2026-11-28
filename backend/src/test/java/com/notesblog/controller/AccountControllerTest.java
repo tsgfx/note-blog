@@ -1,5 +1,7 @@
 package com.notesblog.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -7,12 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.notesblog.config.SecurityConfig;
 import com.notesblog.config.SecurityProperties;
-import com.notesblog.domain.User;
-import com.notesblog.repository.UserRepository;
+import com.notesblog.dto.MeResponse;
 import com.notesblog.service.AuthService;
 import com.notesblog.service.JwtService;
 import com.notesblog.service.TokenVersionService;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,8 +42,6 @@ class AccountControllerTest {
     @MockitoBean
     private AuthService authService;
     @MockitoBean
-    private UserRepository userRepository;
-    @MockitoBean
     private TokenVersionService tokenVersionService;
 
     @TestConfiguration
@@ -52,14 +50,6 @@ class AccountControllerTest {
         SecurityProperties securityProperties() {
             return new SecurityProperties("test-secret-at-least-32-bytes-long-000000", 24, "admin", "pw");
         }
-    }
-
-    private User user(String username, String displayName, String role) {
-        User u = new User();
-        u.setUsername(username);
-        u.setDisplayName(displayName);
-        u.setRole(role);
-        return u;
     }
 
     @Test
@@ -74,7 +64,7 @@ class AccountControllerTest {
     @DisplayName("管理员令牌：200，角色回 ADMIN")
     void adminSeesOwnRole() throws Exception {
         when(tokenVersionService.isCurrent("admin", 0L)).thenReturn(true);
-        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user("admin", "郭瑞超", "ADMIN")));
+        when(authService.me(eq("admin"), any())).thenReturn(new MeResponse("admin", "郭瑞超", "ADMIN"));
 
         mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + jwtService.issue("admin", "ADMIN", 0L)))
                 .andExpect(status().isOk())
@@ -87,7 +77,7 @@ class AccountControllerTest {
     @DisplayName("非管理员令牌：仍然 200，角色回 VIEWER —— 前端要能自己判断「不是管理员」")
     void viewerGetsOwnRoleInsteadOfForbidden() throws Exception {
         when(tokenVersionService.isCurrent("viewer", 0L)).thenReturn(true);
-        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(user("viewer", null, "VIEWER")));
+        when(authService.me(eq("viewer"), any())).thenReturn(new MeResponse("viewer", null, "VIEWER"));
 
         mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + jwtService.issue("viewer", "VIEWER", 0L)))
                 .andExpect(status().isOk())
@@ -98,7 +88,7 @@ class AccountControllerTest {
     @DisplayName("小写角色在令牌里被大写：回 ADMIN —— 前后端判定口径一致")
     void lowercaseRoleIsNormalised() throws Exception {
         when(tokenVersionService.isCurrent("admin", 0L)).thenReturn(true);
-        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user("admin", "郭瑞超", "admin")));
+        when(authService.me(eq("admin"), any())).thenReturn(new MeResponse("admin", "郭瑞超", "ADMIN"));
 
         mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + jwtService.issue("admin", "admin", 0L)))
                 .andExpect(status().isOk())

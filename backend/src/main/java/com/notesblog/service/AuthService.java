@@ -6,10 +6,13 @@ import com.notesblog.domain.User;
 import com.notesblog.dto.ChangePasswordRequest;
 import com.notesblog.dto.LoginRequest;
 import com.notesblog.dto.LoginResponse;
+import com.notesblog.dto.MeResponse;
 import com.notesblog.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import java.util.Collection;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +36,22 @@ public class AuthService {
         auditService.recordAs(user.getUsername(), "LOGIN", null, null);
         return new LoginResponse(jwtService.issue(user.getUsername(), user.getRole(), user.getTokenVersion()),
                 user.getUsername(), user.getDisplayName());
+    }
+
+
+    /** 当前登录身份。显示名归数据库管，角色归当前认证令牌管；用户行缺失时只省略显示名。 */
+    @Transactional(readOnly = true)
+    public MeResponse me(String username, Collection<? extends GrantedAuthority> authorities) {
+        String role = authorities.stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(authority -> authority != null && authority.startsWith("ROLE_"))
+                .map(authority -> authority.substring(5))
+                .findFirst()
+                .orElse("");
+        String displayName = userRepository.findByUsername(username)
+                .map(User::getDisplayName)
+                .orElse(null);
+        return new MeResponse(username, displayName, role);
     }
 
     public void ensureAdmin() {

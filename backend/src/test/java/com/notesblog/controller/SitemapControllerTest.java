@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -24,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** sitemap / robots：绝对地址拼得对、只暴露已发布内容。 */
 @WebMvcTest(controllers = SitemapController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(com.notesblog.service.PublicBlogService.class)
 @TestPropertySource(properties = {
         "site.base-url=http://notes.test/",
         "app.sitemap.max-items=2"
@@ -35,6 +37,10 @@ class SitemapControllerTest {
 
     @MockitoBean
     private NoteRepository noteRepository;
+    @MockitoBean
+    private com.notesblog.service.NoteService noteService;
+    @MockitoBean
+    private com.notesblog.service.RelatedNoteService relatedNoteService;
     @MockitoBean
     private com.notesblog.service.JwtService jwtService;
     @MockitoBean

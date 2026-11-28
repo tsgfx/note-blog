@@ -26,13 +26,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Caution:** do not create a generic date framework; only canonicalize formats actually used.
 
-### B3 — Public-blog read ownership
+### B3 — Public-blog read ownership ✅ completed
 
 **Entropy:** `PublicBlogController`, `RssController`, and `SitemapController` directly query `NoteRepository`; public publication rules spread over web classes.
 
 **Target:** one service-owned public read facade for posts/detail/stats/feed/sitemap data while keeping XML generation at the edge.
 
 **Caution:** avoid shallow passthrough. The service must own publication filtering/query composition, not simply forward every repository method.
+
+**Result:** completed. Added `PublicBlogService` as the public-content boundary for posts/detail/tags/related/stats/feed/sitemap and PV writes. RSS/sitemap controllers now consume service-owned read models instead of repositories/entities. `AccountController` display-name lookup moved into `AuthService`. Added ArchUnit rules: controllers may not depend on repositories, and only service/repository code may depend on repositories. Verification: full backend test suite passed, 273 tests, 0 failures/errors, 2 Docker-dependent skips.
 
 ## Research batches
 
@@ -56,8 +58,8 @@ Backend has unified response/errors; frontend Axios layer handles 401 globally. 
 
 Candidate checks after first migrations:
 
-- frontend lint rule or AST check preventing new direct `http` usage outside `api/client.ts` unless justified;
-- backend ArchUnit or lightweight test preventing controllers from importing repositories;
+- frontend lint rule or AST check preventing new direct `http` usage outside `api/client.ts` unless justified ✅ implemented;
+- expand backend ArchUnit rules beyond repository ownership after dependency directions are mapped;
 - dependency-direction test for domain/dto/service/controller layers.
 
 ## Blocked / pending product decisions

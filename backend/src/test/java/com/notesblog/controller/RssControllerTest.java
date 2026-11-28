@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** RSS 输出：上限可配、正文为空时不能整个 500。 */
 @WebMvcTest(controllers = RssController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(com.notesblog.service.PublicBlogService.class)
 @TestPropertySource(properties = {
         "site.base-url=http://notes.test/",
         "site.title=测试博客",
@@ -38,6 +40,10 @@ class RssControllerTest {
 
     @MockitoBean
     private NoteRepository noteRepository;
+    @MockitoBean
+    private com.notesblog.service.NoteService noteService;
+    @MockitoBean
+    private com.notesblog.service.RelatedNoteService relatedNoteService;
     // 切片会扫到 JwtAuthFilter 与主启动类的 seedAdmin，即使关了过滤器也要满足它们的依赖
     @MockitoBean
     private com.notesblog.service.JwtService jwtService;
