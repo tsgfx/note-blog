@@ -279,3 +279,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Removed the redundant second `taskListShortcut` registration after verifying Tiptap input-rule aggregation semantics; the duplicate only produced a warning and had no independent behavior.
 - Added a source-scan guard so rich-editor extension imports do not spread back into views.
 - Verification: 68/68 frontend Node tests, lint, format check, production build, and a Playwright browser smoke test all passed. The smoke test used a non-conflicting port after discovering port 5173 was serving the unrelated main-workspace dev server.
+
+
+### B17 — note metadata output parsing ownership
+
+- Extracted fragile LLM output parsing from `NoteMetaService` into `NoteMetaParser`.
+- The parser now owns code-fence stripping, JSON extraction, summary/tag length limits, tag cleanup, deduplication, and transient parse errors.
+- `NoteMetaService` retains transaction orchestration and LLM invocation, and now uses the application-managed `ObjectMapper` through the parser instead of a hidden private mapper.
+- Removed stale parsing constants and the old static parsing API after migrating tests to the canonical parser.
+- Verification: full backend suite passed with 292 tests, 0 failures, 0 errors, and the same 2 expected Docker/Testcontainers skips.
