@@ -1,5 +1,7 @@
 package com.notesblog.service;
 
+import com.notesblog.common.ApiRoutes;
+import com.notesblog.config.SiteUrls;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
 import com.notesblog.domain.Tag;
@@ -39,12 +41,10 @@ public class InboxService {
     private final TagRepository tagRepository;
     private final NoteIndexService noteIndexService;
     private final AuditService auditService;
+    private final SiteUrls siteUrls;
 
     @Value("${app.inbox.token:}")
     private String configuredToken;
-
-    @Value("${site.base-url:http://localhost:5173}")
-    private String baseUrl;
 
     /**
      * 当前生效的剪藏授权 Token：只认显式配置的 {@code app.inbox.token}。
@@ -150,8 +150,7 @@ public class InboxService {
      * 获取外部快捷捕捉工具配置与调用示例。
      */
     public Map<String, Object> getConfig() {
-        String normalizedBase = baseUrl == null ? "http://localhost:8080" : baseUrl.replaceAll("/+$", "");
-        String endpoint = normalizedBase + "/api/inbox/quick-capture";
+        String endpoint = siteUrls.base() + ApiRoutes.INBOX_QUICK_CAPTURE;
         if (!isTokenConfigured()) {
             // 不再退回派生值：没配置就明确告诉用户去配，而不是给一个「看起来能用」的串
             return Map.of(

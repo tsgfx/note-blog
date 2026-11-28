@@ -164,6 +164,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. `SiteUrls` now owns the public site title alongside canonical URLs; RSS and notification payloads consume `siteUrls.title()`. Notification test-only constructors now take `SiteUrls` directly, removing the parallel string normalization path. Bark grouping semantics were deliberately left unchanged because they are not the same concept as the site title. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B18 — Inbox route contract ownership ✅ completed
+
+**Entropy:** the quick-capture route was independently repeated by the HTTP mapping, security permit rule, and generated integration example. Changing the endpoint required synchronized edits across layers, while `InboxService` also re-read and normalized `site.base-url` outside the canonical `SiteUrls` owner.
+
+**Target:** one shared compile-time route contract for cross-layer API paths and one canonical owner for the external site base URL.
+
+**Result:** completed. Added scoped `ApiRoutes.INBOX_QUICK_CAPTURE`; controller, security, and configuration examples now consume the same contract. `InboxService` uses `SiteUrls` instead of its own `@Value` normalization. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

@@ -1,6 +1,7 @@
 package com.notesblog.controller;
 
 import com.notesblog.common.ApiResponse;
+import com.notesblog.common.ApiRoutes;
 import com.notesblog.common.ClientIp;
 import com.notesblog.dto.QuickCaptureRequest;
 import com.notesblog.dto.QuickCaptureResponseDto;
@@ -28,7 +29,7 @@ public class InboxController {
      * 开放快捷捕捉 / 剪藏入库接口。
      * 支持 iOS 快捷指令、Raycast、Alfred 脚本或自动化工具通过 Token 快速写入草稿库。
      */
-    @PostMapping("/api/inbox/quick-capture")
+    @PostMapping(ApiRoutes.INBOX_QUICK_CAPTURE)
     public ResponseEntity<ApiResponse<QuickCaptureResponseDto>> quickCapture(
             @Valid @RequestBody QuickCaptureRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader,

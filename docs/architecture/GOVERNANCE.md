@@ -179,3 +179,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Notification test constructors now consume `SiteUrls` directly, removing a parallel string-based normalization path.
 - Bark notification grouping was intentionally not merged into site title because it is a separate provider-specific display concept.
 - Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B18 — inbox route contract ownership
+
+- Added scoped `ApiRoutes.INBOX_QUICK_CAPTURE` for the one route genuinely shared across layers.
+- Controller mapping, security permit rule, and generated integration examples now use the same compile-time contract.
+- `InboxService` consumes canonical `SiteUrls` rather than independently reading and trimming `site.base-url`.
+- `ApiRoutes` documentation explicitly restricts it to routes shared across layers, avoiding a generic string grab-bag.
+- Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).

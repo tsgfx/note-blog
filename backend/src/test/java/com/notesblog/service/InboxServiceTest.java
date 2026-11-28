@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.notesblog.config.SiteUrls;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.Tag;
 import com.notesblog.dto.QuickCaptureRequest;
@@ -32,6 +33,8 @@ class InboxServiceTest {
     private NoteIndexService noteIndexService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private SiteUrls siteUrls;
 
     @InjectMocks
     private InboxService inboxService;
@@ -92,6 +95,9 @@ class InboxServiceTest {
         assertThat(inboxService.isTokenConfigured()).isFalse();
         assertThat(inboxService.isAuthorized(null, "", null)).isFalse();
         assertThat(inboxService.isAuthorized(null, null, null)).isFalse();
-        assertThat(inboxService.getConfig()).containsEntry("configured", false);
+        when(siteUrls.base()).thenReturn("https://notes.example.com");
+        assertThat(inboxService.getConfig())
+                .containsEntry("configured", false)
+                .containsEntry("endpointUrl", "https://notes.example.com/api/inbox/quick-capture");
     }
 }
