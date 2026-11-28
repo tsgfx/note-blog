@@ -155,6 +155,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. `OllamaProbe` and `OpenAiEmbeddingProbe` now constructor-inject `NotesProperties` while preserving their monitoring degradation semantics. Added local HTTP-server behavior tests proving canonical base-url normalization, endpoint selection, auth header propagation, and failure containment. Verification: full backend suite passed, 286 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B17 — Public site metadata ownership ✅ completed
+
+**Entropy:** `site.title` was configured once but consumed through two independent paths: RSS injected it directly while notification copy hardcoded the same brand string. `NotificationService` also carried several string-base-url test constructors that bypassed the canonical `SiteUrls` boundary.
+
+**Target:** one canonical owner for public site metadata and URL construction, with consumers depending on that boundary rather than raw configuration or copied brand text.
+
+**Result:** completed. `SiteUrls` now owns the public site title alongside canonical URLs; RSS and notification payloads consume `siteUrls.title()`. Notification test-only constructors now take `SiteUrls` directly, removing the parallel string normalization path. Bark grouping semantics were deliberately left unchanged because they are not the same concept as the site title. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

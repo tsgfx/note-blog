@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.notesblog.config.SiteUrls;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
@@ -19,11 +20,15 @@ class NotificationServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private SiteUrls siteUrls(String baseUrl) {
+        return new SiteUrls(baseUrl, "一隅笔记");
+    }
+
     @Test
     @DisplayName("未配置 Webhook 时禁用，不发起网络请求")
     void disabledWhenUrlIsBlank() {
         HttpClient httpClient = mock(HttpClient.class);
-        NotificationService service = new NotificationService("", "http://localhost:5173", objectMapper, httpClient);
+        NotificationService service = new NotificationService("", siteUrls("http://localhost:5173"), objectMapper, httpClient);
 
         assertThat(service.isEnabled()).isFalse();
 
@@ -36,7 +41,7 @@ class NotificationServiceTest {
     void formatsFeishuPayload() {
         NotificationService service = new NotificationService(
                 "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper);
 
         String json = service.buildPayloadJson("文章一", "https://notes.example.com/blog/p1", "太精彩了", "1.1.1.1");
@@ -51,7 +56,7 @@ class NotificationServiceTest {
     void formatsDingTalkPayload() {
         NotificationService service = new NotificationService(
                 "https://oapi.dingtalk.com/robot/send?access_token=xxx",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper);
 
         String json = service.buildPayloadJson("文章二", "https://notes.example.com/blog/p2", "受教了", "1.1.1.1");
@@ -65,7 +70,7 @@ class NotificationServiceTest {
     void formatsWeComPayload() {
         NotificationService service = new NotificationService(
                 "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper);
 
         String json = service.buildPayloadJson("文章三", "https://notes.example.com/blog/p3", "顶一下", "1.1.1.1");
@@ -79,7 +84,7 @@ class NotificationServiceTest {
     void formatsBarkPayload() {
         NotificationService service = new NotificationService(
                 "https://api.day.app/my-key",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper);
 
         String json = service.buildPayloadJson("文章四", "https://notes.example.com/blog/p4", "写的真棒", "1.1.1.1");
@@ -93,7 +98,7 @@ class NotificationServiceTest {
     void formatsGenericPayload() {
         NotificationService service = new NotificationService(
                 "https://example.com/webhook",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper);
 
         String json = service.buildPayloadJson("文章五", "https://notes.example.com/blog/p5", "好文", "1.1.1.1");
@@ -111,7 +116,7 @@ class NotificationServiceTest {
 
         NotificationService service = new NotificationService(
                 "https://example.com/webhook",
-                "https://notes.example.com",
+                siteUrls("https://notes.example.com"),
                 objectMapper,
                 httpClient);
 

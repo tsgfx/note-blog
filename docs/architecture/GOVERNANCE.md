@@ -170,3 +170,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `NoteEditorView` now owns only textarea measurement, focus, and selection restoration through one adapter.
 - Preserved historical edge semantics, including leading newline insertion, placeholder selection, idempotent line prefixes, and partial-line replacement behavior.
 - Verification: 58/58 frontend Node tests passed; lint, format check, and production build passed.
+
+
+### B17 — public site metadata ownership
+
+- `SiteUrls` now owns the public site title as well as canonical public URLs.
+- RSS no longer injects `site.title` independently; notification copy no longer hardcodes the same title.
+- Notification test constructors now consume `SiteUrls` directly, removing a parallel string-based normalization path.
+- Bark notification grouping was intentionally not merged into site title because it is a separate provider-specific display concept.
+- Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).

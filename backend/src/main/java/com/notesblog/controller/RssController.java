@@ -27,9 +27,6 @@ public class RssController {
     private final PublicBlogService publicBlogService;
     private final SiteUrls siteUrls;
 
-    @Value("${site.title}")
-    private String title;
-
     /** 订阅源最多输出多少条。RSS 阅读器不适合塞整站内容，所以给个上限，但不再是散落的魔法数字。 */
     @Value("${app.rss.max-items:50}")
     private int maxItems;
@@ -42,9 +39,9 @@ public class RssController {
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<rss version=\"2.0\"><channel>\n")
-                .append("<title>").append(XmlEscape.text(title)).append("</title>\n")
+                .append("<title>").append(XmlEscape.text(siteUrls.title())).append("</title>\n")
                 .append("<link>").append(XmlEscape.text(base)).append("</link>\n")
-                .append("<description>").append(XmlEscape.text(title)).append("</description>\n")
+                .append("<description>").append(XmlEscape.text(siteUrls.title())).append("</description>\n")
                 .append("<lastBuildDate>").append(rfc1123(LocalDateTime.now())).append("</lastBuildDate>\n");
         for (PublicBlogService.FeedItem note : posts) {
             String link = siteUrls.post(note.slug());

@@ -47,8 +47,8 @@ public class NotificationService {
     }
 
     /** 供测试直接构造（默认 HttpClient，同步执行） */
-    public NotificationService(String webhookUrl, String baseUrl, ObjectMapper objectMapper) {
-        this(webhookUrl, baseUrl, objectMapper, HttpClient.newBuilder()
+    public NotificationService(String webhookUrl, SiteUrls siteUrls, ObjectMapper objectMapper) {
+        this(webhookUrl, siteUrls, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build(), Runnable::run);
     }
@@ -56,23 +56,14 @@ public class NotificationService {
     /** 供测试注入 HttpClient（不给 executor 时同步执行，断言更确定） */
     public NotificationService(
             String webhookUrl,
-            String baseUrl,
+            SiteUrls siteUrls,
             ObjectMapper objectMapper,
             HttpClient httpClient) {
-        this(webhookUrl, baseUrl, objectMapper, httpClient, Runnable::run);
+        this(webhookUrl, siteUrls, objectMapper, httpClient, Runnable::run);
     }
 
-    /** 供测试注入 HttpClient 与执行器；字符串地址立即进入 canonical SiteUrls。 */
+    /** 供测试注入 HttpClient 与执行器。 */
     public NotificationService(
-            String webhookUrl,
-            String baseUrl,
-            ObjectMapper objectMapper,
-            HttpClient httpClient,
-            Executor executor) {
-        this(webhookUrl, new SiteUrls(baseUrl), objectMapper, httpClient, executor);
-    }
-
-    private NotificationService(
             String webhookUrl,
             SiteUrls siteUrls,
             ObjectMapper objectMapper,
@@ -137,8 +128,8 @@ public class NotificationService {
      * 飞书、钉钉、企业微信、Bark 与通用 Webhook 一并兼容。
      */
     public String buildPayloadJson(String postTitle, String articleUrl, String commentContent, String clientIp) {
-        String summary = String.format("【一隅笔记 · 新评论提醒】\n文章：《%s》\n内容：%s\n链接：%s",
-                postTitle, commentContent, articleUrl);
+        String summary = String.format("【%s · 新评论提醒】\n文章：《%s》\n内容：%s\n链接：%s",
+                siteUrls.title(), postTitle, commentContent, articleUrl);
 
         try {
             if (webhookUrl.contains("feishu") || webhookUrl.contains("larksuite")) {
