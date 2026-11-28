@@ -79,3 +79,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Deleted the unused display-name persistence write; `notes_blog_user` is now only a legacy key removed during session cleanup.
 - Added a structural regression test that fails if auth storage keys appear outside the owner module.
 - Verification: frontend lint, format check, production build, and 32 Node tests passed.
+
+
+### B7 — public reading-history ownership
+
+- Added `lib/readHistory.ts` as the sole owner of the reading-history storage key, newest-first ordering, deduplication, 10-entry cap, and malformed-data fallback.
+- Migrated blog recommendation loading and article-detail history recording to that owner.
+- Added behavior tests for ordering/capping/damaged data and a structural test preventing direct key use elsewhere.
+- Verification: frontend lint, format check, production build, and 35 Node tests passed.

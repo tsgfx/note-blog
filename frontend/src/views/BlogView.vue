@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { isoYear, monthDayCompact } from '../lib/date'
+import { getReadingHistory } from '../lib/readHistory'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   listPublishedNotes,
@@ -42,17 +43,7 @@ const hasPrev = computed(() => page.value > 0)
 const hasNext = computed(() => page.value + 1 < totalPages.value)
 
 function syncHistoryCount() {
-  try {
-    const raw = localStorage.getItem('notesblog_read_history')
-    if (raw) {
-      const list = JSON.parse(raw)
-      historyCount.value = Array.isArray(list) ? list.length : 0
-    } else {
-      historyCount.value = 0
-    }
-  } catch {
-    historyCount.value = 0
-  }
+  historyCount.value = getReadingHistory().length
 }
 
 /** 分组：最新排序按年份汇集；热门与推荐独立展现完整信息流 */
@@ -166,14 +157,7 @@ async function load(target = 0) {
   try {
     if (currentSort.value === 'recommended') {
       syncHistoryCount()
-      let historyList: string[] = []
-      try {
-        const raw = localStorage.getItem('notesblog_read_history')
-        if (raw) historyList = JSON.parse(raw)
-      } catch {
-        // 隐私模式下静默
-      }
-      const result = await listRecommendations(historyList, PAGE_SIZE)
+      const result = await listRecommendations(getReadingHistory(), PAGE_SIZE)
       posts.value = result
       page.value = 0
       totalPages.value = 1

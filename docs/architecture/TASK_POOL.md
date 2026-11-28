@@ -65,6 +65,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/authSession.ts`; migrated all auth token reads/writes/clears. Stopped writing unused `notes_blog_user` while still removing that legacy key when the session is cleared. Added a structural Node test preventing auth storage keys from being reintroduced outside the owner module. Verification: lint/format/build passed; 32 frontend Node tests passed.
 
+
+### B7 — Public reading-history ownership ✅ completed
+
+**Entropy:** reading-history parsing and writing were implemented separately in `BlogView` and `NoteDetailView`, while recommendation ordering depends on one shared newest-first/deduplicated/capped contract.
+
+**Target:** one owner for the local reading-history contract.
+
+**Result:** completed. Added `lib/readHistory.ts`; migrated recommendation input and article-history recording. Corrupt or foreign stored data now consistently falls back to an empty history rather than leaking malformed values into recommendations. Added behavior tests and a structural ownership test for the storage key. Verification: lint/format/build passed; 35 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

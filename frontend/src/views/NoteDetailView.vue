@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { isoDate } from '../lib/date'
+import { recordReadingHistory as rememberReadingHistory } from '../lib/readHistory'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   generateNoteMeta,
@@ -116,7 +117,7 @@ async function load() {
     note.value = isPublicRoute.value ? await getPublishedNote(slug) : await getNote(slug)
     if (isPublicRoute.value && note.value) {
       recordViewOnce(note.value.slug)
-      recordReadingHistory(note.value.slug)
+      rememberReadingHistory(note.value.slug)
       // 公开文章用文章自己的标题与摘要：标签页、浏览器历史、分享预览才认得出来
       applyArticleSeo(note.value.title, note.value.summary || plainText(note.value.contentMd))
     }
@@ -186,18 +187,6 @@ function handleSelectionChange() {
 function openQuoteModal() {
   quoteModalOpen.value = true
   quoteBtnPos.value = null
-}
-
-function recordReadingHistory(slug: string) {
-  if (!slug) return
-  try {
-    const raw = localStorage.getItem('notesblog_read_history')
-    const list: string[] = raw ? JSON.parse(raw) : []
-    const updated = [slug, ...list.filter((s) => s !== slug)].slice(0, 10)
-    localStorage.setItem('notesblog_read_history', JSON.stringify(updated))
-  } catch {
-    // 隐私模式下静默
-  }
 }
 
 /**
