@@ -112,7 +112,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               </label>
               <RouterLink
                 class="pf-edit-link"
-                :to="`/editor/${item.id}`"
+                :to="{ name: 'editor', params: { slug: item.id } }"
                 target="_blank"
                 title="在新标签页中打开编辑并脱敏"
               >

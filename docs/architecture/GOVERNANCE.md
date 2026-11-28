@@ -261,3 +261,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `feedItems()` and `sitemapRefs()` are now complete read-model operations rather than parameterized leaks of HTTP-edge configuration.
 - Controllers no longer use `@Value`; added an ArchUnit guard keeping configuration ownership below the HTTP edge.
 - Verification: full backend suite passed before the test-only guard addition (292 tests, 0 failures/errors, 2 Docker-dependent skips); guard and affected controller tests passed afterward.
+
+
+### F14 — parameterized client route ownership
+
+- Migrated parameterized blog-detail, note-detail, and editor navigation to named Vue Router routes with params.
+- Preserved numeric editor identifiers exactly as-is; whether those should be slugs instead is a separate API/product issue.
+- Static entry links were deliberately not mass-rewritten in this batch because they do not duplicate dynamic path-construction logic.
+- Added a source-scan guard preventing client-route template interpolation outside the API layer.
+- Verification: 67/67 frontend Node tests passed; lint, format check, and production build passed.

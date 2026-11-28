@@ -300,7 +300,7 @@ function resetFilters() {
 }
 
 function open(note: NoteSummary) {
-  router.push(`/notes/${note.slug}`)
+  router.push({ name: 'note-detail', params: { slug: note.slug } })
 }
 
 /** 点行即打开，同时记住位置——从详情返回时列表还停在原处 */
@@ -777,7 +777,9 @@ onBeforeUnmount(() => {
               @change="toggleSelect(note.id)"
             />
             <div class="row-main">
-              <RouterLink class="row-title" :to="`/notes/${note.slug}`" @click.stop>{{ note.title }}</RouterLink>
+              <RouterLink class="row-title" :to="{ name: 'note-detail', params: { slug: note.slug } }" @click.stop>{{
+                note.title
+              }}</RouterLink>
               <!-- 摘要：列表里判断「这篇能不能公开」最需要的信息。
                    没有它就得点进正文看，批量筛选的成本全耗在这一步上 -->
               <p v-if="note.summary" class="row-summary">{{ note.summary }}</p>
@@ -805,7 +807,7 @@ onBeforeUnmount(() => {
                 {{ note.hasUnpublishedEdits ? '待重发' : note.status === 'PUBLISHED' ? '已发布' : '草稿' }}
               </span>
               <div class="row-actions" @click.stop>
-                <RouterLink class="btn btn-text" :to="`/editor/${note.slug}`">编辑</RouterLink>
+                <RouterLink class="btn btn-text" :to="{ name: 'editor', params: { slug: note.slug } }">编辑</RouterLink>
                 <!-- 待重发的笔记行按钮不能再写「下线」：线上还是旧内容，该做的是把新内容推上去 -->
                 <template v-if="note.status === 'PUBLISHED' && note.hasUnpublishedEdits">
                   <button class="btn btn-text row-cta" type="button" @click="togglePublish(note)">重新发布</button>

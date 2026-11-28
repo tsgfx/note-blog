@@ -134,7 +134,7 @@ export async function submitQuickCapture(options: {
 
     if (options.navigateToEdit && options.router) {
       notify('已存为草稿，正在打开完整编辑器…', 'success')
-      await options.router.push(`/editor/${note.id}`)
+      await options.router.push({ name: 'editor', params: { slug: note.id } })
     } else {
       notify(`已保存到闪念收集箱：「${finalTitle}」`, 'success')
       // 如果当前就在笔记列表，通过自定义事件通知列表刷新

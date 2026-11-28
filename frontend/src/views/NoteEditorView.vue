@@ -480,13 +480,13 @@ async function save(publishAfter = false) {
     savedSnapshot.value = snapshot.value
     clearDraft()
     // 新建的笔记先把自己变成一个真实的路由，刷新或返回时才不会回到空白页
-    if (isNew.value) await router.replace(`/editor/${note.slug}`)
+    if (isNew.value) await router.replace({ name: 'editor', params: { slug: note.slug } })
 
     if (publishAfter) {
       await publishNote(note.id)
       finished.value = true
       notify('已保存并发布')
-      router.push(`/notes/${note.slug}`)
+      router.push({ name: 'note-detail', params: { slug: note.slug } })
       return
     }
 

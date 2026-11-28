@@ -410,7 +410,11 @@ async function submit() {
           </p>
           <ul class="integrity-list">
             <li v-for="item in integrity.brokenAssets" :key="item.noteId + item.assetPath" class="integrity-item">
-              <router-link :to="`/editor/${item.noteId}`" class="integrity-note-title" target="_blank">
+              <router-link
+                :to="{ name: 'editor', params: { slug: item.noteId } }"
+                class="integrity-note-title"
+                target="_blank"
+              >
                 {{ item.noteTitle }} ↗
               </router-link>
               <code class="integrity-path">{{ item.assetPath }}</code>

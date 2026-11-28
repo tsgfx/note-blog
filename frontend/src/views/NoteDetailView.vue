@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
               <RouterLink to="/blog">文章</RouterLink>
               <template v-if="seriesName">
                 <span> / </span>
-                <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="crumb-series">
+                <RouterLink :to="{ name: 'blog', query: { keyword: seriesName } }" class="crumb-series">
                   {{ seriesName }}
                 </RouterLink>
               </template>
@@ -418,7 +418,7 @@ onBeforeUnmount(() => {
                   v-for="tag in note.tags"
                   :key="tag"
                   class="meta-tag meta-tag-link"
-                  :to="{ path: '/blog', query: { tag } }"
+                  :to="{ name: 'blog', query: { tag } }"
                 >
                   {{ tag }}
                 </RouterLink>
@@ -458,7 +458,9 @@ onBeforeUnmount(() => {
             >
               <span class="sparkle" aria-hidden="true">✦</span> 问答
             </button>
-            <RouterLink class="btn btn-ghost btn-sm" :to="`/editor/${note.slug}`">编辑</RouterLink>
+            <RouterLink class="btn btn-ghost btn-sm" :to="{ name: 'editor', params: { slug: note.slug } }"
+              >编辑</RouterLink
+            >
             <button
               class="btn btn-ghost btn-sm"
               type="button"
@@ -476,10 +478,10 @@ onBeforeUnmount(() => {
           <div v-if="isPublicRoute && seriesName" class="series-callout">
             <span class="series-badge">专栏连载</span>
             <span class="series-hint">收录于专题</span>
-            <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="series-link">
+            <RouterLink :to="{ name: 'blog', query: { keyword: seriesName } }" class="series-link">
               《{{ seriesName }}》
             </RouterLink>
-            <RouterLink :to="{ path: '/blog', query: { keyword: seriesName } }" class="series-arrow">
+            <RouterLink :to="{ name: 'blog', query: { keyword: seriesName } }" class="series-arrow">
               查看专题全部文章 →
             </RouterLink>
           </div>
@@ -514,13 +516,21 @@ onBeforeUnmount(() => {
 
         <!-- 相邻文章导航（公开文章视图） -->
         <nav v-if="isPublicRoute && (note.prev || note.next)" class="adjacent-nav" aria-label="相邻文章导航">
-          <RouterLink v-if="note.prev" :to="`/blog/${note.prev.slug}`" class="adjacent-card adjacent-prev">
+          <RouterLink
+            v-if="note.prev"
+            :to="{ name: 'blog-detail', params: { slug: note.prev.slug } }"
+            class="adjacent-card adjacent-prev"
+          >
             <span class="adjacent-hint">← 上一篇</span>
             <span class="adjacent-title">{{ note.prev.title }}</span>
           </RouterLink>
           <div v-else class="adjacent-empty" />
 
-          <RouterLink v-if="note.next" :to="`/blog/${note.next.slug}`" class="adjacent-card adjacent-next">
+          <RouterLink
+            v-if="note.next"
+            :to="{ name: 'blog-detail', params: { slug: note.next.slug } }"
+            class="adjacent-card adjacent-next"
+          >
             <span class="adjacent-hint">下一篇 →</span>
             <span class="adjacent-title">{{ note.next.title }}</span>
           </RouterLink>
@@ -533,7 +543,11 @@ onBeforeUnmount(() => {
               v-for="item in related"
               :key="item.id"
               class="related-card"
-              :to="isPublicRoute ? `/blog/${item.slug}` : `/notes/${item.slug}`"
+              :to="
+                isPublicRoute
+                  ? { name: 'blog-detail', params: { slug: item.slug } }
+                  : { name: 'note-detail', params: { slug: item.slug } }
+              "
             >
               <div class="related-card-head">
                 <span class="related-name">{{ item.title }}</span>
@@ -554,7 +568,11 @@ onBeforeUnmount(() => {
               v-for="b in backlinks"
               :key="b.id"
               class="backlink-card"
-              :to="isPublicRoute ? `/blog/${b.slug}` : `/notes/${b.slug}`"
+              :to="
+                isPublicRoute
+                  ? { name: 'blog-detail', params: { slug: b.slug } }
+                  : { name: 'note-detail', params: { slug: b.slug } }
+              "
             >
               <div class="backlink-card-head">
                 <span class="backlink-name">{{ b.title }}</span>

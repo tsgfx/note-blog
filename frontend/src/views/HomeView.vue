@@ -431,7 +431,7 @@ function scrollToTop() {
       <div class="lib-right">
         <ol v-if="posts.length" class="post-list">
           <li v-for="(post, index) in posts" :key="post.id" class="post" :style="{ '--i': index }">
-            <RouterLink class="post-link" :to="`/blog/${post.slug}`">
+            <RouterLink class="post-link" :to="{ name: 'blog-detail', params: { slug: post.slug } }">
               <span class="post-date">{{ monthDaySpaced(post.publishedAt) }}</span>
               <span class="post-title">{{ post.title }}</span>
               <span v-if="post.summary" class="post-summary">{{ post.summary }}</span>

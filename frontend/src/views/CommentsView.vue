@@ -151,7 +151,7 @@ onMounted(() => load(0))
           <RouterLink
             v-if="item.noteSlug"
             class="row-note"
-            :to="`/blog/${item.noteSlug}`"
+            :to="{ name: 'blog-detail', params: { slug: item.noteSlug } }"
             target="_blank"
             rel="noopener"
           >

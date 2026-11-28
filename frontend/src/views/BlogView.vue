@@ -347,7 +347,7 @@ onMounted(() => {
               <div v-if="post.recommendReason" class="post-recommend-tag">
                 <span class="rec-sparkle" aria-hidden="true">✦</span> {{ post.recommendReason }}
               </div>
-              <RouterLink class="post-title" :to="`/blog/${post.slug}`">
+              <RouterLink class="post-title" :to="{ name: 'blog-detail', params: { slug: post.slug } }">
                 <span class="post-title-text">{{ post.title }}</span>
               </RouterLink>
               <p v-if="post.summary" class="post-summary">{{ post.summary }}</p>
