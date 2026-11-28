@@ -102,4 +102,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Moved audit-log page/size clamping, repository paging, and DTO mapping into `AuditService`.
 - Invalid paging input now converges to safe values instead of risking a 500 from `PageRequest` construction.
 - Added ArchUnit rules preventing controllers from depending on `PageRequest` or `Sort` again.
-- Verification: full backend suite passed (281 tests, 0 failures/errors, 2 Docker-dependent skips).
+- Verification: full backend suite passed (283 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B10 — editor draft persistence ownership
+
+- Added `lib/editorDraft.ts` as the sole owner of the editor-draft storage key, record shape, serialization, malformed-record fallback, and storage failure handling.
+- Kept dirty-state timing, restore confirmation, and Tiptap content synchronization in `NoteEditorView`, where that orchestration belongs.
+- Added behavior tests for round-trip/corruption/cleanup and a structural test preventing direct key use elsewhere.
+- Verification: frontend lint, format check, production build, and 38 Node tests passed.

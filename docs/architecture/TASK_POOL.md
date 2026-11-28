@@ -90,7 +90,16 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Target:** services own pagination construction and query semantics; controllers remain HTTP edges. Prevent reintroduction with architecture tests.
 
-**Result:** completed. `AuditService.list(page, size)` now owns safe page/size clamping, the 200-row cap, repository paging, and DTO mapping. `AuditController` only passes query parameters. ArchUnit now rejects controller dependencies on `PageRequest` and `Sort`. Verification: full backend suite passed, 281 tests, 0 failures/errors, 2 Docker-dependent skips.
+**Result:** completed. `AuditService.list(page, size)` now owns safe page/size clamping, the 200-row cap, repository paging, and DTO mapping. `AuditController` only passes query parameters. ArchUnit now rejects controller dependencies on `PageRequest` and `Sort`. Verification: full backend suite passed, 283 tests, 0 failures/errors, 2 Docker-dependent skips.
+
+
+### B10 — Editor draft persistence ownership ✅ completed
+
+**Entropy:** `NoteEditorView` directly owned the draft storage key, JSON schema, malformed-data behavior, and storage failure handling in addition to editor orchestration.
+
+**Target:** a small, testable owner for local editor-draft persistence while the view keeps user-facing orchestration (dirty checks, confirmation, Tiptap synchronization).
+
+**Result:** completed. Added `lib/editorDraft.ts` and migrated draft write/load/clear. Malformed draft records now consistently read as absent instead of leaking partial shapes into restore logic. Added behavior tests and a structural ownership test for the storage key. Verification: lint/format/build passed; 38 frontend Node tests passed.
 
 ## Research batches
 

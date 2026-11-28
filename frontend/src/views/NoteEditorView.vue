@@ -29,6 +29,7 @@ import {
   uploadImage,
   type NoteInput,
 } from '../api/notes'
+import { clearEditorDraft, editorDraftId, loadEditorDraft, writeEditorDraft } from '../lib/editorDraft'
 import { confirmAction, notify } from '../lib/feedback'
 import { renderMarkdown } from '../lib/markdown'
 
@@ -369,50 +370,28 @@ function fillFrom(note: { title: string; summary?: string; tags: string[]; conte
 /* ───────── 草稿暂存：每 10 秒把改动写进 localStorage ─────────
  * 编辑器没有自动保存，浏览器崩了/手滑关标签就全丢。这里只在本机留一份，
  * 重新打开同一个笔记（或新建页）时问一句要不要恢复，服务端不受影响。 */
-const DRAFT_KEY = 'note-editor-draft-v1'
 let draftTimer = 0
-
-function draftId(): string {
-  return slug.value || 'new'
-}
 
 function writeDraft() {
   if (!dirty.value) return
-  try {
-    localStorage.setItem(
-      DRAFT_KEY,
-      JSON.stringify({
-        id: draftId(),
-        title: title.value,
-        summary: summary.value,
-        tagsText: tagsText.value,
-        contentMd: contentMd.value,
-        at: new Date().toISOString(),
-      }),
-    )
-    draftSavedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  } catch {
-    // 私密模式或配额满：暂存只是兜底，写不进去不影响继续编辑
-  }
+  const at = writeEditorDraft({
+    id: editorDraftId(slug.value),
+    title: title.value,
+    summary: summary.value,
+    tagsText: tagsText.value,
+    contentMd: contentMd.value,
+  })
+  if (at) draftSavedAt.value = new Date(at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
 function clearDraft() {
-  try {
-    localStorage.removeItem(DRAFT_KEY)
-  } catch {
-    // 同上
-  }
+  clearEditorDraft()
   draftSavedAt.value = ''
 }
 
 async function restoreDraftIfAny() {
-  let draft: { id: string; title: string; summary: string; tagsText: string; contentMd: string; at: string } | null
-  try {
-    draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
-  } catch {
-    draft = null
-  }
-  if (!draft || draft.id !== draftId()) return
+  const draft = loadEditorDraft()
+  if (!draft || draft.id !== editorDraftId(slug.value)) return
   const current = JSON.stringify([title.value, summary.value, tagsText.value, contentMd.value])
   const kept = JSON.stringify([draft.title, draft.summary, draft.tagsText, draft.contentMd])
   if (current === kept) {
