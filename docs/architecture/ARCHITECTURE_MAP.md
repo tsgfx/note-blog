@@ -93,8 +93,6 @@ Initially controllers imported repositories directly (`AccountController -> User
 
 ### Duplicate implementations already confirmed
 
-- XML escaping duplicated in `RssController` and `SitemapController`.
-- trailing-slash normalization of `site.base-url` duplicated in `RssController` and `SitemapController`.
 - date formatting/slicing duplicated across `BlogView`, `HomeView`, `NotesView`, `NoteDetailView`, `SettingsView`, `ShareQuoteModal`.
 - `library` / `path` compatibility exists intentionally in backend and frontend API comments; it is a contract compatibility layer, not accidental duplication, but its ownership should remain explicit.
 
@@ -133,7 +131,7 @@ High value / low risk first batches:
 1. Canonicalize frontend API unwrapping through `api/client.ts` and delete duplicated manual unwrap code.
 2. Canonicalize date formatting helpers and migrate all display call sites.
 3. Clarify `NoteService` responsibility boundaries before extracting larger write/publish modules.
-4. Canonicalize site URL normalization and XML escaping where RSS/sitemap share semantics.
+4. Build a configuration contract inventory before further typed-properties migration.
 
 Do not start with:
 

@@ -38,6 +38,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `PublicBlogService` as the public-content boundary for posts/detail/tags/related/stats/feed/sitemap and PV writes. RSS/sitemap controllers now consume service-owned read models instead of repositories/entities. `AccountController` display-name lookup moved into `AuthService`. Added ArchUnit rules: controllers may not depend on repositories, and only service/repository code may depend on repositories. Verification: full backend test suite passed, 273 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B4 — Canonical public URLs and XML escaping ✅ completed
+
+**Entropy:** RSS and sitemap duplicated XML escaping and `site.base-url` trailing-slash normalization; notification article links repeated the same public URL construction semantics.
+
+**Target:** one authority for public URL construction and one XML text escaping implementation, without conflating public article URLs with API endpoint URLs.
+
+**Result:** completed. Added `config/SiteUrls` and `common/XmlEscape`; migrated RSS, sitemap, robots, and comment notification links. `InboxService` intentionally remains separate because it builds an API endpoint example, not a public article URL. Verification: full backend suite passed.
+
 ## Research batches
 
 ### R1 — NoteService responsibility boundaries

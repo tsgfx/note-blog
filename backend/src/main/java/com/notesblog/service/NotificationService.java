@@ -1,6 +1,7 @@
 package com.notesblog.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.notesblog.config.SiteUrls;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -28,7 +29,7 @@ import org.springframework.stereotype.Service;
 public class NotificationService {
 
     private final String webhookUrl;
-    private final String baseUrl;
+    private final SiteUrls siteUrls;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     /** 旁路池：外部 webhook 可能挂 4 秒，绝不能占请求线程或 commonPool。 */
@@ -37,10 +38,10 @@ public class NotificationService {
     @Autowired
     public NotificationService(
             @Value("${app.notification.webhook-url:}") String webhookUrl,
-            @Value("${site.base-url:http://localhost:5173}") String baseUrl,
+            SiteUrls siteUrls,
             ObjectMapper objectMapper,
             @Qualifier("sideEffectExecutor") Executor executor) {
-        this(webhookUrl, baseUrl, objectMapper, HttpClient.newBuilder()
+        this(webhookUrl, siteUrls, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build(), executor);
     }
@@ -61,15 +62,24 @@ public class NotificationService {
         this(webhookUrl, baseUrl, objectMapper, httpClient, Runnable::run);
     }
 
-    /** 供测试注入 HttpClient 与执行器 */
+    /** 供测试注入 HttpClient 与执行器；字符串地址立即进入 canonical SiteUrls。 */
     public NotificationService(
             String webhookUrl,
             String baseUrl,
             ObjectMapper objectMapper,
             HttpClient httpClient,
             Executor executor) {
+        this(webhookUrl, new SiteUrls(baseUrl), objectMapper, httpClient, executor);
+    }
+
+    private NotificationService(
+            String webhookUrl,
+            SiteUrls siteUrls,
+            ObjectMapper objectMapper,
+            HttpClient httpClient,
+            Executor executor) {
         this.webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
-        this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
+        this.siteUrls = siteUrls;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.executor = executor;
@@ -96,7 +106,7 @@ public class NotificationService {
         try {
         CompletableFuture.runAsync(() -> {
             try {
-                String articleUrl = baseUrl + "/blog/" + postSlug;
+                String articleUrl = siteUrls.post(postSlug);
                 String truncatedContent = truncate(commentContent, 300);
                 String bodyJson = buildPayloadJson(postTitle, articleUrl, truncatedContent, clientIp);
 

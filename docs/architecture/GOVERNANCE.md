@@ -52,3 +52,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Added `frontend/src/lib/date.ts` as the single owner of the ISO display formats actually used by the UI.
 - Migrated ad-hoc date slicing in Blog, Home, Notes, and NoteDetail without changing rendered formats.
 - Added focused unit tests; verification passed: lint, format check, production build, 30 frontend Node tests.
+
+
+### B4 — canonical public URLs and XML escaping
+
+- Added `SiteUrls` as the owner of public-site URL normalization and public route construction (`/`, `/blog`, `/blog/{slug}`, `/sitemap.xml`).
+- Added `XmlEscape` as the single XML text escaping implementation.
+- Migrated RSS, sitemap, robots, and comment notification links; removed parallel trailing-slash/XML escaping implementations.
+- Explicitly did not migrate `InboxService` quick-capture endpoint construction because API endpoint URLs and public article URLs are semantically different despite often sharing a deployed origin.
+- Verification: full backend suite passed; focused controller/service/config tests passed.

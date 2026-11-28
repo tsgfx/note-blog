@@ -1,5 +1,7 @@
 package com.notesblog.controller;
 
+import com.notesblog.common.XmlEscape;
+import com.notesblog.config.SiteUrls;
 import com.notesblog.service.PublicBlogService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -8,7 +10,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,9 +25,7 @@ public class RssController {
     private static final DateTimeFormatter RFC_1123 = DateTimeFormatter.RFC_1123_DATE_TIME;
 
     private final PublicBlogService publicBlogService;
-
-    @Value("${site.base-url}")
-    private String baseUrl;
+    private final SiteUrls siteUrls;
 
     @Value("${site.title}")
     private String title;
@@ -38,40 +37,31 @@ public class RssController {
     @GetMapping(value = {"/rss.xml", "/feed.xml", "/atom.xml"}, produces = "application/rss+xml;charset=UTF-8")
     @Transactional(readOnly = true)
     public String feed() {
-        String base = siteUrl();
+        String base = siteUrls.base();
         List<PublicBlogService.FeedItem> posts = publicBlogService.feedItems(maxItems);
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<rss version=\"2.0\"><channel>\n")
-                .append("<title>").append(escape(title)).append("</title>\n")
-                .append("<link>").append(escape(base)).append("</link>\n")
-                .append("<description>").append(escape(title)).append("</description>\n")
+                .append("<title>").append(XmlEscape.text(title)).append("</title>\n")
+                .append("<link>").append(XmlEscape.text(base)).append("</link>\n")
+                .append("<description>").append(XmlEscape.text(title)).append("</description>\n")
                 .append("<lastBuildDate>").append(rfc1123(LocalDateTime.now())).append("</lastBuildDate>\n");
         for (PublicBlogService.FeedItem note : posts) {
-            String link = base + "/blog/" + note.slug();
+            String link = siteUrls.post(note.slug());
             xml.append("<item>\n")
-                    .append("<title>").append(escape(note.title())).append("</title>\n")
-                    .append("<link>").append(escape(link)).append("</link>\n")
-                    .append("<guid isPermaLink=\"true\">").append(escape(link)).append("</guid>\n")
-                    .append("<description>").append(escape(description(note))).append("</description>\n");
+                    .append("<title>").append(XmlEscape.text(note.title())).append("</title>\n")
+                    .append("<link>").append(XmlEscape.text(link)).append("</link>\n")
+                    .append("<guid isPermaLink=\"true\">").append(XmlEscape.text(link)).append("</guid>\n")
+                    .append("<description>").append(XmlEscape.text(description(note))).append("</description>\n");
             if (note.publishedAt() != null) {
                 xml.append("<pubDate>").append(rfc1123(note.publishedAt())).append("</pubDate>\n");
             }
             for (String tag : note.tags()) {
-                xml.append("<category>").append(escape(tag)).append("</category>\n");
+                xml.append("<category>").append(XmlEscape.text(tag)).append("</category>\n");
             }
             xml.append("</item>\n");
         }
         return xml.append("</channel></rss>\n").toString();
-    }
-
-    /** 站点地址去掉结尾斜杠，避免拼出 https://example.com//blog/xxx 这种双斜杠链接。 */
-    private String siteUrl() {
-        String value = baseUrl == null ? "" : baseUrl.trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
     }
 
     private String description(PublicBlogService.FeedItem note) {
@@ -90,9 +80,4 @@ public class RssController {
         return RFC_1123.format(ZonedDateTime.of(time, ZONE));
     }
 
-    private static String escape(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                .replace("\"", "&quot;").replace("'", "&apos;");
-    }
 }

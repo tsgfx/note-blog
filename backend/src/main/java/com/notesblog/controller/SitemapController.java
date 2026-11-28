@@ -1,5 +1,7 @@
 package com.notesblog.controller;
 
+import com.notesblog.common.XmlEscape;
+import com.notesblog.config.SiteUrls;
 import com.notesblog.service.PublicBlogService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,9 +34,7 @@ public class SitemapController {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final PublicBlogService publicBlogService;
-
-    @Value("${site.base-url}")
-    private String baseUrl;
+    private final SiteUrls siteUrls;
 
     /** sitemap 单文件上限按协议是 5 万条，这里给个可配的保守值，免得站点长大后撑爆。 */
     @Value("${app.sitemap.max-items:5000}")
@@ -43,7 +43,6 @@ public class SitemapController {
     @GetMapping(value = "/sitemap.xml", produces = "application/xml;charset=UTF-8")
     @Transactional(readOnly = true)
     public String sitemap() {
-        String base = siteUrl();
         // 只取 slug 与时间三列：sitemap 一条记录用不到正文，
         // 没必要把几百篇 MEDIUMTEXT 读进内存。
         List<PublicBlogService.PublishedRef> posts = publicBlogService.sitemapRefs(maxItems);
@@ -52,10 +51,10 @@ public class SitemapController {
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
         // 首页（名片）与博客列表：这两页是常驻入口，没有 lastmod 语义，不硬编时间
-        xml.append(url(base + "/", null, "1.0"));
-        xml.append(url(base + "/blog", null, "0.9"));
+        xml.append(url(siteUrls.home(), null, "1.0"));
+        xml.append(url(siteUrls.blogIndex(), null, "0.9"));
         for (PublicBlogService.PublishedRef note : posts) {
-            xml.append(url(base + "/blog/" + note.slug(), lastmod(note), "0.8"));
+            xml.append(url(siteUrls.post(note.slug()), lastmod(note), "0.8"));
         }
         return xml.append("</urlset>\n").toString();
     }
@@ -73,16 +72,16 @@ public class SitemapController {
                 .append("Disallow: /admin\n")
                 .append("Disallow: /login\n")
                 .append("Disallow: /ask\n");
-        String base = siteUrl();
+        String base = siteUrls.base();
         // Sitemap 指令要求绝对地址；没配 base-url 就不写，宁缺毋滥
         if (!base.isEmpty()) {
-            txt.append("\nSitemap: ").append(base).append("/sitemap.xml\n");
+            txt.append("\nSitemap: ").append(siteUrls.sitemap()).append("\n");
         }
         return txt.toString();
     }
 
     private static String url(String loc, String lastmod, String priority) {
-        StringBuilder sb = new StringBuilder("  <url><loc>").append(escape(loc)).append("</loc>");
+        StringBuilder sb = new StringBuilder("  <url><loc>").append(XmlEscape.text(loc)).append("</loc>");
         if (lastmod != null) {
             sb.append("<lastmod>").append(lastmod).append("</lastmod>");
         }
@@ -95,17 +94,4 @@ public class SitemapController {
         return time == null ? null : DATE.format(time);
     }
 
-    private String siteUrl() {
-        String value = baseUrl == null ? "" : baseUrl.trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
-    }
-
-    private static String escape(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                .replace("\"", "&quot;").replace("'", "&apos;");
-    }
 }

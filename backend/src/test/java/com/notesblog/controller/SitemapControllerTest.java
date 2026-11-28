@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** sitemap / robots：绝对地址拼得对、只暴露已发布内容。 */
 @WebMvcTest(controllers = SitemapController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(com.notesblog.service.PublicBlogService.class)
+@Import({com.notesblog.service.PublicBlogService.class, com.notesblog.config.SiteUrls.class})
 @TestPropertySource(properties = {
         "site.base-url=http://notes.test/",
         "app.sitemap.max-items=2"

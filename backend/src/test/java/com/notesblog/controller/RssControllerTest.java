@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** RSS 输出：上限可配、正文为空时不能整个 500。 */
 @WebMvcTest(controllers = RssController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(com.notesblog.service.PublicBlogService.class)
+@Import({com.notesblog.service.PublicBlogService.class, com.notesblog.config.SiteUrls.class})
 @TestPropertySource(properties = {
         "site.base-url=http://notes.test/",
         "site.title=测试博客",
