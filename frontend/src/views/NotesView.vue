@@ -24,6 +24,7 @@ import { openQuickCapture } from '../lib/quickCaptureState'
 import { collapseAll, revealFolder } from '../lib/folderTree'
 import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
+import { noteFolderLabel } from '../lib/noteFolder'
 import { visibleTagOptions } from '../lib/tagOptions'
 
 const PAGE_SIZE = 40
@@ -156,17 +157,7 @@ const visibleTags = computed(() =>
 )
 
 function folderOf(note: NoteSummary): string {
-  if (!note.sourcePath) return '新建笔记'
-  const parts = note.sourcePath.split('/')
-  parts.pop()
-  if (!parts.length) return '根目录'
-
-  // 已经按目录筛过之后，每行再顶着整条路径念一遍没有信息量，
-  // 只显示相对当前目录的那一段；直接放在该目录下的显示「本目录」
-  const scope = activePath.value ? activePath.value.split('/') : []
-  const inScope = scope.length > 0 && scope.every((segment, index) => parts[index] === segment)
-  const relative = inScope ? parts.slice(scope.length) : parts
-  return relative.join(' / ') || '本目录'
+  return noteFolderLabel(note.sourcePath, activePath.value)
 }
 
 /**

@@ -119,3 +119,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Kept tag loading, query state, and selection actions in `NotesView`; only the deterministic presentation rule moved.
 - Added focused tests covering each ordering branch, reducing the amount of untestable logic embedded in the 1,900-line view.
 - Verification: frontend lint, format check, production build, and 42 Node tests passed.
+
+
+### B12 — admin note-folder labels
+
+- Extracted relative folder-label semantics into `lib/noteFolder.ts`.
+- Locked down the four display branches—new note, root directory, nested path, and active-path collapse—with focused tests.
+- The large view now only adapts reactive state to the canonical rule; no rendering or filtering behavior changed.
+- Verification: frontend lint, format check, production build, and 46 Node tests passed.

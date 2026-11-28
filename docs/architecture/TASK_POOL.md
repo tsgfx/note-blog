@@ -110,6 +110,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/tagOptions.ts` with behavior-preserving `visibleTagOptions`; `NotesView` now delegates the computed ordering. Added Node tests for selected-first, query matching, expansion, and collapsed hot-order behavior. Verification: lint/format/build passed; 42 frontend Node tests passed.
 
+
+### B12 — Admin note-folder labels ✅ completed
+
+**Entropy:** `NotesView` embedded the relative-folder display rules for new notes, root notes, nested paths, active-path collapse, and the special “本目录” case without direct tests.
+
+**Target:** isolate the deterministic folder-label rule from list loading, selection, batch operations, and rendering.
+
+**Result:** completed. Added `lib/noteFolder.ts`; `NotesView` now adapts `NoteSummary` plus active path to that rule. Added tests for root/new/nested/relative/outside-scope cases. Verification: lint/format/build passed; 46 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
