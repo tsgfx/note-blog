@@ -30,6 +30,12 @@ import {
   type NoteInput,
 } from '../api/notes'
 import { clearEditorDraft, editorDraftId, loadEditorDraft, writeEditorDraft } from '../lib/editorDraft'
+import {
+  loadCodeWrapPreference,
+  loadEditorMode,
+  saveCodeWrapPreference,
+  saveEditorMode,
+} from '../lib/editorPreferences'
 import { insertBlockAtCursor, prefixSelectedLines, surroundSelection, type TextEditResult } from '../lib/sourceTextEdit'
 import { confirmAction, notify } from '../lib/feedback'
 import { renderMarkdown } from '../lib/markdown'
@@ -47,11 +53,10 @@ const isNew = computed(() => route.name === 'editor-new')
  * 两种模式共享同一份 contentMd，随时互切不丢内容。
  */
 type EditorMode = 'rich' | 'source'
-const MODE_KEY = 'note-editor-mode'
-const mode = ref<EditorMode>(localStorage.getItem(MODE_KEY) === 'source' ? 'source' : 'rich')
+const mode = ref<EditorMode>(loadEditorMode())
 
 watch(mode, (value) => {
-  localStorage.setItem(MODE_KEY, value)
+  saveEditorMode(value)
   if (value === 'rich') {
     // 从源码切回富文本：把最新 markdown 灌进编辑器（不触发 onUpdate，免得脏标记抖动）
     editor.value?.commands.setContent(contentMd.value, false)
@@ -84,14 +89,9 @@ const syncScroll = ref(true)
 const dragging = ref(false)
 
 /* 代码块：语言标注 + 自动换行（换行只是编辑时的观感，写进 markdown 的始终是原样缩进） */
-const WRAP_KEY = 'note-editor-code-wrap'
-const wrapCode = ref(localStorage.getItem(WRAP_KEY) === '1')
+const wrapCode = ref(loadCodeWrapPreference())
 watch(wrapCode, (value) => {
-  try {
-    localStorage.setItem(WRAP_KEY, value ? '1' : '0')
-  } catch {
-    /* 隐私模式下 localStorage 可能不可写，不影响编辑 */
-  }
+  saveCodeWrapPreference(value)
 })
 /** 只列阅读页 highlight.js 能真正高亮的语言，选了不该出现的反而误导 */
 const CODE_LANGUAGES = [

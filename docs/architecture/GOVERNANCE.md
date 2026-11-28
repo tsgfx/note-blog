@@ -245,3 +245,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `NoteDetailView` now asks the canonical owner whether a view should be reported instead of manipulating session keys inline.
 - Added source-scan guard preventing the raw key prefix from reappearing outside the owner.
 - Verification: 63/63 frontend Node tests passed; lint, format check, and production build passed.
+
+
+### F13 — editor preference ownership
+
+- Added `frontend/src/lib/editorPreferences.ts` as the sole owner of editor mode and code-wrap localStorage keys/defaults.
+- `NoteEditorView` no longer manipulates those raw keys directly.
+- Added source-scan guard preventing both keys from reappearing outside the owner.
+- Verification: 66/66 frontend Node tests passed; lint, format check, and production build passed.
