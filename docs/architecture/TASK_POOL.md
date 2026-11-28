@@ -146,6 +146,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `RateLimitProperties` and constructor-injected it into `RateLimitConfig`; removed all five duplicated `@Value` fields. `@EnableConfigurationProperties` keeps WebMvcTest slices working. Added a Binder contract test for canonical kebab-case keys. Verification: full backend suite passed, 284 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B16 — Embedding probe configuration ownership ✅ completed
+
+**Entropy:** both embedding health probes bypassed the already-canonical typed `NotesProperties` and re-read `notes.embedding.*` through scattered `@Value` strings, duplicating configuration ownership and null/default semantics.
+
+**Target:** one typed owner for embedding configuration, with probes consuming the same object as the embedding clients.
+
+**Result:** completed. `OllamaProbe` and `OpenAiEmbeddingProbe` now constructor-inject `NotesProperties` while preserving their monitoring degradation semantics. Added local HTTP-server behavior tests proving canonical base-url normalization, endpoint selection, auth header propagation, and failure containment. Verification: full backend suite passed, 286 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

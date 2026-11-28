@@ -4,8 +4,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import com.notesblog.config.NotesProperties;
 import java.time.Duration;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -28,12 +28,14 @@ public class OllamaProbe implements EmbeddingProbe {
     private final String baseUrl;
 
     /**
-     * 属性名带默认值不是随手写的：健康检查是「监控」组件，
-     * 它读不到配置时应该退化成本地默认值、报告 ollama 不可用，
+     * 配置对象已经有 typed canonical 来源；这里只保留监控降级语义：
+     * 读不到地址时退化成本地默认值、报告 ollama 不可用，
      * 而不是让整个应用启动失败——监控不该成为新的故障源。
      */
-    public OllamaProbe(@Value("${notes.embedding.base-url:http://localhost:11434}") String baseUrl) {
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    public OllamaProbe(NotesProperties properties) {
+        String configured = properties.embedding().baseUrl();
+        String normalized = configured == null || configured.isBlank() ? "http://localhost:11434" : configured.trim();
+        this.baseUrl = normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
         this.client = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     }
 

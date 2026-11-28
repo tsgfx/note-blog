@@ -4,8 +4,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import com.notesblog.config.NotesProperties;
 import java.time.Duration;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -27,10 +27,11 @@ public class OpenAiEmbeddingProbe implements EmbeddingProbe {
     private final String baseUrl;
     private final String apiKey;
 
-    public OpenAiEmbeddingProbe(@Value("${notes.embedding.base-url:}") String baseUrl,
-                                @Value("${notes.embedding.api-key:}") String apiKey) {
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        this.apiKey = apiKey;
+    public OpenAiEmbeddingProbe(NotesProperties properties) {
+        String configured = properties.embedding().baseUrl();
+        String normalized = configured == null ? "" : configured.trim();
+        this.baseUrl = normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
+        this.apiKey = properties.embedding().apiKey() == null ? "" : properties.embedding().apiKey();
         this.client = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     }
 
