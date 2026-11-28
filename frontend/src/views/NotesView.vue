@@ -26,6 +26,7 @@ import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
 import NotePreflightDialog from '../components/NotePreflightDialog.vue'
 import { noteFolderLabel } from '../lib/noteFolder'
+import { notesListKeyAction } from '../lib/notesListKeyboard'
 import { createResizableWidth } from '../lib/resizableWidth'
 import { visibleTagOptions } from '../lib/tagOptions'
 
@@ -334,54 +335,38 @@ watch(query, () => {
 function onKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
+  const action = notesListKeyAction({
+    key: event.key,
+    typing: Boolean(typing),
+    hasQuery: Boolean(query.value),
+    dialogOpen: preflightOpen.value,
+    modified: event.metaKey || event.ctrlKey || event.altKey,
+    focused: focusedIndex.value >= 0,
+  })
+  if (action === 'none') return
 
-  // 预检弹窗开着时，键盘行为归弹窗；列表快捷键不得在背后继续生效
-  if (preflightOpen.value) return
-
-  if (typing) {
-    if (event.key === 'Escape') {
-      if (query.value) {
-        query.value = ''
-        void nextTick(() => searchEl.value?.blur())
-      } else {
-        searchEl.value?.blur()
-      }
-    }
+  if (action === 'clear-query-and-blur') {
+    query.value = ''
+    void nextTick(() => searchEl.value?.blur())
+    return
+  }
+  if (action === 'blur-search') {
+    searchEl.value?.blur()
     return
   }
 
-  if (event.metaKey || event.ctrlKey || event.altKey) return
-
+  event.preventDefault()
   const index = focusedIndex.value
-
-  if (event.key === '/') {
-    event.preventDefault()
-    searchEl.value?.focus()
-    return
-  }
-  if (event.key === 'j' || event.key === 'ArrowDown') {
-    event.preventDefault()
-    focusRow(index < 0 ? 0 : index + 1)
-    return
-  }
-  if (event.key === 'k' || event.key === 'ArrowUp') {
-    event.preventDefault()
-    focusRow(index < 0 ? 0 : index - 1)
-    return
-  }
-  if (event.key === 'Enter' && index >= 0) {
-    event.preventDefault()
+  if (action === 'focus-search') searchEl.value?.focus()
+  else if (action === 'move-focus-down') focusRow(index < 0 ? 0 : index + 1)
+  else if (action === 'move-focus-up') focusRow(index < 0 ? 0 : index - 1)
+  else if (action === 'open-focused') {
     const note = notes.value[index]
     if (note) open(note)
-    return
-  }
-  if (event.key === 'x' && index >= 0) {
-    event.preventDefault()
+  } else if (action === 'toggle-focused-selection') {
     const note = notes.value[index]
     if (note) toggleSelect(note.id)
-    return
-  }
-  if (event.key === 'Escape') {
+  } else if (action === 'clear-focus-and-selection') {
     clearSelection()
     focusedIndex.value = -1
   }

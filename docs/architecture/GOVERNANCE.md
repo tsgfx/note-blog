@@ -198,3 +198,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Payload tests target the formatter directly; transport tests remain on the service.
 - Corrected the disabled-webhook test to verify the actual `send` transport method instead of a vacuous `sendAsync` assertion.
 - Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### F11 — notes list keyboard decision ownership
+
+- Added `frontend/src/lib/notesListKeyboard.ts` as the canonical owner of note-list keyboard shortcut decisions.
+- The Vue view still owns DOM focus, scrolling, selection mutation, and route navigation.
+- Preserved modal interception, typing behavior, modifier exclusion, focused-row requirements, and Escape semantics.
+- Verification: 61/61 frontend Node tests passed; lint, format check, and production build passed.
