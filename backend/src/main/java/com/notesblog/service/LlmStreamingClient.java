@@ -20,6 +20,8 @@ public class LlmStreamingClient {
 
     private final NotesProperties properties;
     private final ObjectMapper objectMapper;
+    /** HttpClient 线程安全且负责连接复用；每次请求新建会丢掉连接池。 */
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
 
     public void stream(String system, String user, Consumer<String> onText) {
         var config = properties.llm();
@@ -52,9 +54,7 @@ public class LlmStreamingClient {
                 .build();
 
         try {
-            HttpResponse<java.util.stream.Stream<String>> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(20))
-                    .build()
+            HttpResponse<java.util.stream.Stream<String>> response = httpClient
                     .send(request, HttpResponse.BodyHandlers.ofLines());
             if (response.statusCode() != 200) {
                 String detail = response.body().limit(3).reduce("", (a, b) -> a + b);

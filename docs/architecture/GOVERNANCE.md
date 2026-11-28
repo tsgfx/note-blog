@@ -295,3 +295,9 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Added package-private `EmbeddingVector` as the sole owner of JSON-array conversion and the shared 1024-dimensional vector invariant.
 - Migrated both Ollama and OpenAI embedding clients while preserving provider-specific endpoints, payload shapes, missing-response validation, and timeout behavior.
 - Verification: full backend suite passed with 295 tests, 0 failures, 0 errors, and 2 expected Docker/Testcontainers skips.
+
+
+### B25 — LLM HTTP client lifecycle
+
+- `LlmStreamingClient` now reuses one thread-safe `HttpClient`, preserving the existing 20-second connect timeout and all request/stream parsing behavior while retaining connection pooling across calls.
+- Verification: full backend suite passed.
