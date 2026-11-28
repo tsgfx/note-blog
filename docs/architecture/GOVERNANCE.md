@@ -145,3 +145,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Extracted blocker/warning/publishable-id decisions into `lib/preflight.ts` so the core rule is testable without mounting Vue.
 - `NotesView` now only fetches the report, opens the dialog, and executes the confirmed batch publish; it shrinks by roughly 330 lines.
 - Verification: frontend lint, format check, production build, and 52 Node tests passed.
+
+
+### B15 — rate-limit configuration ownership
+
+- Added typed `RateLimitProperties` for the five high-cost endpoint limits.
+- Removed duplicated Java-side `@Value` defaults; `application.yml` is now the sole owner of defaults and environment-variable mapping.
+- `RateLimitConfig` constructor-injects the typed contract and explicitly enables it so controller test slices continue to boot.
+- Added a Binder contract test for the canonical `app.rate-limit.*` keys.
+- Verification: full backend suite passed (284 tests, 0 failures/errors, 2 Docker-dependent skips).

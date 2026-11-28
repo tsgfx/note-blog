@@ -119,6 +119,7 @@ app:
     webhook-url: ${NOTIFICATION_WEBHOOK_URL:}
 
   rate-limit:
+    # 默认值只在这里维护；Java 侧不再写第二份 @Value 默认值，避免两处漂移。
     # 这两个接口是"贵"的：问答花 LLM token，搜索做向量检索。
     # 按客户端 IP 每分钟计数，超了返回 429 + Retry-After。
     #

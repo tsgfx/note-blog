@@ -137,6 +137,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `NotePreflightDialog.vue` and `lib/preflight.ts`. The dialog now owns exclusion state, warning exclusion, publishable count, Escape close, rendering, and scoped modal styles; `NotesView` shrank by about 330 lines and receives only the final confirmed id list. Added pure tests for blocker/warning/publishable rules. Verification: lint/format/build passed; 52 frontend Node tests passed.
 
+
+### B15 — Rate-limit configuration ownership ✅ completed
+
+**Entropy:** five rate-limit values were bound through scattered `@Value` fields whose defaults duplicated `application.yml`; the codebase already documented a real incident risk from these two sources drifting.
+
+**Target:** one typed configuration contract for rate limits, with `application.yml` as the sole owner of environment-variable mapping and defaults.
+
+**Result:** completed. Added `RateLimitProperties` and constructor-injected it into `RateLimitConfig`; removed all five duplicated `@Value` fields. `@EnableConfigurationProperties` keeps WebMvcTest slices working. Added a Binder contract test for canonical kebab-case keys. Verification: full backend suite passed, 284 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
