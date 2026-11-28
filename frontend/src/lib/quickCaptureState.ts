@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import type { Router } from 'vue-router'
 import { createNote, type NoteDetail } from '../api/notes'
 import { notify } from './feedback'
+import { inferQuickCaptureTitle } from './quickCaptureTitle'
 
 const DRAFT_STORAGE_KEY = 'note_blog_quick_capture_draft'
 
@@ -66,27 +67,6 @@ export function clearDraft() {
   tags.value = ['闪念']
 }
 
-/** 自动提取正文首行或时间戳作为标题 */
-export function inferTitle(rawContent: string, explicitTitle?: string): string {
-  if (explicitTitle && explicitTitle.trim()) {
-    return explicitTitle.trim()
-  }
-  const lines = rawContent.split('\n')
-  for (const line of lines) {
-    const cleaned = line
-      .replace(/^[#>\s*\-+]+/, '')
-      .replace(/^\[[ xX]\]\s*/, '')
-      .replace(/[`_~]/g, '')
-      .trim()
-    if (cleaned.length > 0) {
-      return cleaned.length > 40 ? cleaned.slice(0, 40) + '…' : cleaned
-    }
-  }
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `闪念 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
-}
-
 export function openQuickCapture(initialText?: string) {
   loadDraft()
   if (initialText !== undefined && initialText.trim()) {
@@ -118,7 +98,7 @@ export async function submitQuickCapture(options: {
     return null
   }
 
-  const finalTitle = inferTitle(body, title.value)
+  const finalTitle = inferQuickCaptureTitle(body, title.value)
   const finalTags = tags.value.length > 0 ? tags.value : ['闪念']
 
   saving.value = true

@@ -311,3 +311,8 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 ### F17 — quota and theme persistence ownership guard
 
 - `ask-quota` and `notes_blog_theme` already had single owners; added a combined source-scan guard preventing views/components/state modules from referencing those raw persistence keys outside `guestQuota.ts` and `theme.ts`. No runtime behavior changed.
+
+
+### F18 — quick-capture title inference ownership
+
+- Extracted quick-capture title inference from the global state module into pure `quickCaptureTitle.ts`. The state module still owns modal/session lifecycle; the pure module owns explicit-title precedence, Markdown/checkbox cleanup, 40-character truncation, and timestamp fallback. Added deterministic behavior tests. No user-facing behavior changed.
