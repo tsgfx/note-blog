@@ -25,6 +25,7 @@ import { collapseAll, revealFolder } from '../lib/folderTree'
 import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
 import { noteFolderLabel } from '../lib/noteFolder'
+import { createResizableWidth } from '../lib/resizableWidth'
 import { visibleTagOptions } from '../lib/tagOptions'
 
 const PAGE_SIZE = 40
@@ -45,48 +46,25 @@ const SIDEBAR_DEFAULT = 208
 const sidebarWidth = ref(SIDEBAR_DEFAULT)
 const layoutEl = ref<HTMLElement>()
 
-function clampSidebar(px: number): number {
-  const max = Math.min(SIDEBAR_MAX, window.innerWidth - 420)
-  return Math.round(Math.min(Math.max(px, SIDEBAR_MIN), Math.max(SIDEBAR_MIN, max)))
-}
-
-function applySidebar(px: number): number {
-  const w = clampSidebar(px)
-  sidebarWidth.value = w
-  return w
-}
-
-function onSidebarMove(e: PointerEvent) {
-  const left = layoutEl.value?.getBoundingClientRect().left ?? 0
-  applySidebar(e.clientX - left)
-}
-
-function onSidebarUp() {
-  document.body.classList.remove('sidebar-resizing')
-  window.removeEventListener('pointermove', onSidebarMove)
-  window.removeEventListener('pointerup', onSidebarUp)
-  try {
-    localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth.value))
-  } catch {
-    // 隐私模式下 localStorage 会抛，宽度不记住不影响使用
-  }
-}
+const sidebarResize = createResizableWidth({
+  storageKey: SIDEBAR_KEY,
+  minWidth: SIDEBAR_MIN,
+  maxWidth: SIDEBAR_MAX,
+  viewportReserve: 420,
+  minViewportWidth: 760,
+  resizingClass: 'sidebar-resizing',
+  measureWidth: (pointerX) => pointerX - (layoutEl.value?.getBoundingClientRect().left ?? 0),
+  setWidth: (width) => {
+    sidebarWidth.value = width ?? SIDEBAR_DEFAULT
+  },
+})
 
 function onSidebarDown(e: PointerEvent) {
-  if (window.innerWidth < 760) return
-  e.preventDefault()
-  document.body.classList.add('sidebar-resizing')
-  window.addEventListener('pointermove', onSidebarMove)
-  window.addEventListener('pointerup', onSidebarUp)
+  sidebarResize.pointerDown(e)
 }
 
 function resetSidebar() {
-  applySidebar(SIDEBAR_DEFAULT)
-  try {
-    localStorage.removeItem(SIDEBAR_KEY)
-  } catch {
-    // 同上
-  }
+  sidebarResize.reset()
 }
 
 const router = useRouter()
@@ -624,12 +602,7 @@ watch(
 
 onMounted(() => {
   // 左栏宽度是用户上次拖出来的，先恢复再渲染，避免闪一下变宽
-  try {
-    const saved = Number(localStorage.getItem(SIDEBAR_KEY))
-    if (saved > 0) applySidebar(saved)
-  } catch {
-    // 读不到就用默认宽度
-  }
+  sidebarResize.restore()
 
   // ?path= 进来的（分享链接、刷新、从详情页返回）先恢复选中项，再拉数据
   const initial = typeof route.query.path === 'string' ? route.query.path : ''
@@ -653,8 +626,7 @@ function onNotesReload() {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('notes-reload', onNotesReload)
-  window.removeEventListener('pointermove', onSidebarMove)
-  window.removeEventListener('pointerup', onSidebarUp)
+  sidebarResize.destroy()
 })
 </script>
 

@@ -119,6 +119,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/noteFolder.ts`; `NotesView` now adapts `NoteSummary` plus active path to that rule. Added tests for root/new/nested/relative/outside-scope cases. Verification: lint/format/build passed; 46 frontend Node tests passed.
 
+
+### B13 — Resizable width controller ✅ completed
+
+**Entropy:** `NotesView` and `AskDrawer` independently duplicated pointer-drag resizing, viewport clamping, body drag state, persistence, restore, reset, and listener cleanup while differing only in direction/bounds/CSS application.
+
+**Target:** one canonical framework-independent controller for drag-width lifecycle; callers declare measurement direction, bounds, breakpoint, storage key, and how width is applied.
+
+**Result:** completed. Added `lib/resizableWidth.ts` and migrated both callers. The controller does not duplicate caller-owned default widths; `null` represents “use the caller’s default”. It also normalizes storage failure handling and unmount cleanup. Added Node tests for drag/clamp/persist/cleanup, restore/reset, and small-viewport behavior. Verification: lint/format/build passed; 49 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

@@ -127,3 +127,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Locked down the four display branches—new note, root directory, nested path, and active-path collapse—with focused tests.
 - The large view now only adapts reactive state to the canonical rule; no rendering or filtering behavior changed.
 - Verification: frontend lint, format check, production build, and 46 Node tests passed.
+
+
+### B13 — resizable width controller
+
+- Extracted duplicated drag-to-resize behavior from `NotesView` and `AskDrawer` into `lib/resizableWidth.ts`.
+- The canonical controller owns viewport clamping, pointer listener lifecycle, body drag state, persistence, restore, reset, and cleanup.
+- Callers retain only their semantic differences: measurement direction, size bounds, mobile breakpoint, storage key, and CSS/reactive application.
+- Avoided copying CSS-owned default widths into TypeScript; the controller uses `null` for the caller-owned default state.
+- Verification: frontend lint, format check, production build, and 49 Node tests passed.

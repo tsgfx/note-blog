@@ -22,6 +22,7 @@ import {
   stop,
 } from '../lib/askState'
 import { isLoggedIn } from '../api/auth'
+import { createResizableWidth } from '../lib/resizableWidth'
 
 const router = useRouter()
 /** 流式消息的渲染结果；合帧逻辑在 lib/askState.ts（只攒源码，不碰 markdown） */
@@ -38,39 +39,26 @@ const WIDTH_KEY = 'ask-drawer-w-px'
 const WIDTH_MIN = 360
 const WIDTH_MAX = 960
 
-function clampWidth(px: number): number {
-  const max = Math.max(WIDTH_MIN, Math.min(WIDTH_MAX, window.innerWidth - 360))
-  return Math.round(Math.min(Math.max(px, WIDTH_MIN), max))
-}
-
-function applyWidth(px: number): number {
-  const w = clampWidth(px)
-  document.documentElement.style.setProperty('--ask-drawer-w', `${w}px`)
-  return w
-}
-
-function onResizeMove(e: PointerEvent) {
-  applyWidth(window.innerWidth - e.clientX)
-}
-
-function onResizeUp(e: PointerEvent) {
-  document.body.classList.remove('drawer-resizing')
-  window.removeEventListener('pointermove', onResizeMove)
-  window.removeEventListener('pointerup', onResizeUp)
-  localStorage.setItem(WIDTH_KEY, String(applyWidth(window.innerWidth - e.clientX)))
-}
+const drawerResize = createResizableWidth({
+  storageKey: WIDTH_KEY,
+  minWidth: WIDTH_MIN,
+  maxWidth: WIDTH_MAX,
+  viewportReserve: 360,
+  minViewportWidth: 768,
+  resizingClass: 'drawer-resizing',
+  measureWidth: (pointerX) => window.innerWidth - pointerX,
+  setWidth: (width) => {
+    if (width === null) document.documentElement.style.removeProperty('--ask-drawer-w')
+    else document.documentElement.style.setProperty('--ask-drawer-w', `${width}px`)
+  },
+})
 
 function onResizeDown(e: PointerEvent) {
-  if (window.innerWidth < 768) return
-  e.preventDefault()
-  document.body.classList.add('drawer-resizing')
-  window.addEventListener('pointermove', onResizeMove)
-  window.addEventListener('pointerup', onResizeUp)
+  drawerResize.pointerDown(e)
 }
 
 function resetWidth() {
-  localStorage.removeItem(WIDTH_KEY)
-  document.documentElement.style.removeProperty('--ask-drawer-w')
+  drawerResize.reset()
 }
 
 /* ───────── 输入框自适应高度 ───────── */
@@ -163,16 +151,13 @@ watch(isOpen, (open) => {
 })
 
 onMounted(() => {
-  const saved = Number(localStorage.getItem(WIDTH_KEY))
-  if (saved >= WIDTH_MIN) applyWidth(saved)
+  drawerResize.restore()
   refreshQuota()
   window.addEventListener('keydown', onWindowKeydown)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onWindowKeydown)
-  document.body.classList.remove('drawer-resizing')
-  window.removeEventListener('pointermove', onResizeMove)
-  window.removeEventListener('pointerup', onResizeUp)
+  drawerResize.destroy()
 })
 </script>
 
