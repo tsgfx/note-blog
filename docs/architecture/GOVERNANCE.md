@@ -306,3 +306,8 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 ### F16 — quick-capture draft key ownership guard
 
 - The quick-capture draft key already had a single owner in `quickCaptureState.ts`; added a source-scan regression guard so views/components cannot bypass that owner with the raw session-storage key. No runtime behavior changed.
+
+
+### F17 — quota and theme persistence ownership guard
+
+- `ask-quota` and `notes_blog_theme` already had single owners; added a combined source-scan guard preventing views/components/state modules from referencing those raw persistence keys outside `guestQuota.ts` and `theme.ts`. No runtime behavior changed.
