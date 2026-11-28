@@ -161,7 +161,7 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `OllamaProbe` and `OpenAiEmbeddingProbe` now consume canonical typed `NotesProperties` instead of re-reading `notes.embedding.*` with `@Value`.
 - Monitoring degradation semantics remain local to the probes: missing Ollama config falls back to localhost; external failures still return false rather than breaking application startup or health reporting.
 - Added local HTTP-server tests covering endpoint selection, trailing-slash normalization, auth propagation, and failure containment.
-- Verification: full backend suite passed (286 tests, 0 failures/errors, 2 Docker-dependent skips).
+- Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).
 
 
 ### F10 — markdown source-edit ownership

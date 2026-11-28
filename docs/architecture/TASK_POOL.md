@@ -153,7 +153,7 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Target:** one typed owner for embedding configuration, with probes consuming the same object as the embedding clients.
 
-**Result:** completed. `OllamaProbe` and `OpenAiEmbeddingProbe` now constructor-inject `NotesProperties` while preserving their monitoring degradation semantics. Added local HTTP-server behavior tests proving canonical base-url normalization, endpoint selection, auth header propagation, and failure containment. Verification: full backend suite passed, 286 tests, 0 failures/errors, 2 Docker-dependent skips.
+**Result:** completed. `OllamaProbe` and `OpenAiEmbeddingProbe` now constructor-inject `NotesProperties` while preserving their monitoring degradation semantics. Added local HTTP-server behavior tests proving canonical base-url normalization, endpoint selection, auth header propagation, and failure containment. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
 
 
 ### B17 — Public site metadata ownership ✅ completed
