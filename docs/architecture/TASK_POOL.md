@@ -222,6 +222,10 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. `NoteMetaParser` now owns fragile LLM output parsing: code-fence stripping, JSON extraction, summary/tag truncation, tag cleanup, deduplication, count limits, and transient parse errors. `NoteMetaService` retains transaction orchestration and LLM invocation. Removed the hidden private `new ObjectMapper()` and stale parsing constants. Verification: full backend suite passed with 293 tests, 0 failures, 0 errors, 2 expected Docker/Testcontainers skips.
 
+### B24 — Embedding vector contract ownership ✅ completed
+
+**Result:** completed. `EmbeddingVector` now owns conversion from provider-specific JSON arrays to the shared 1024-dimensional vector contract. Ollama and OpenAI clients keep their provider-specific endpoints, payload shapes, missing-response validation, and timeout semantics; only the duplicated vector conversion/dimension invariant was canonicalized. Verification: full backend suite passed with 295 tests, 0 failures, 0 errors, 2 expected skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

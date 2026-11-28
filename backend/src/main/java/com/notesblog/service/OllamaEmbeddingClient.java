@@ -66,12 +66,6 @@ public class OllamaEmbeddingClient implements EmbeddingClient {
                 || body.get("embeddings").isEmpty()) {
             throw new IllegalStateException("Ollama 未返回 embedding");
         }
-        List<Double> vector = objectMapper.convertValue(
-                body.get("embeddings").get(0),
-                objectMapper.getTypeFactory().constructCollectionType(List.class, Double.class));
-        if (vector.size() != 1024) {
-            throw new IllegalStateException("embedding 维度错误：" + vector.size());
-        }
-        return vector;
+        return EmbeddingVector.require1024(body.get("embeddings").get(0), objectMapper);
     }
 }

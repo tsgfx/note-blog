@@ -288,3 +288,10 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `NoteMetaService` retains transaction orchestration and LLM invocation, and now uses the application-managed `ObjectMapper` through the parser instead of a hidden private mapper.
 - Removed stale parsing constants and the old static parsing API after migrating tests to the canonical parser.
 - Verification: full backend suite passed with 293 tests, 0 failures, 0 errors, and the same 2 expected Docker/Testcontainers skips.
+
+
+### B24 — embedding vector contract ownership
+
+- Added package-private `EmbeddingVector` as the sole owner of JSON-array conversion and the shared 1024-dimensional vector invariant.
+- Migrated both Ollama and OpenAI embedding clients while preserving provider-specific endpoints, payload shapes, missing-response validation, and timeout behavior.
+- Verification: full backend suite passed with 295 tests, 0 failures, 0 errors, and 2 expected Docker/Testcontainers skips.

@@ -62,12 +62,6 @@ public class OpenAiEmbeddingClient implements EmbeddingClient {
                 || body.get("data").isEmpty()) {
             throw new IllegalStateException("embedding API 未返回向量");
         }
-        List<Double> vector = objectMapper.convertValue(
-                body.get("data").get(0).get("embedding"),
-                objectMapper.getTypeFactory().constructCollectionType(List.class, Double.class));
-        if (vector.size() != 1024) {
-            throw new IllegalStateException("embedding 维度错误：" + vector.size() + "（应为 1024，检查模型是否为 bge-m3）");
-        }
-        return vector;
+        return EmbeddingVector.require1024(body.get("data").get(0).get("embedding"), objectMapper);
     }
 }
