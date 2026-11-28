@@ -301,3 +301,8 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 
 - `LlmStreamingClient` now reuses one thread-safe `HttpClient`, preserving the existing 20-second connect timeout and all request/stream parsing behavior while retaining connection pooling across calls.
 - Verification: full backend suite passed.
+
+
+### F16 — quick-capture draft key ownership guard
+
+- The quick-capture draft key already had a single owner in `quickCaptureState.ts`; added a source-scan regression guard so views/components cannot bypass that owner with the raw session-storage key. No runtime behavior changed.
