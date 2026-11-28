@@ -270,3 +270,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Static entry links were deliberately not mass-rewritten in this batch because they do not duplicate dynamic path-construction logic.
 - Added a source-scan guard preventing client-route template interpolation outside the API layer.
 - Verification: 67/67 frontend Node tests passed; lint, format check, and production build passed.
+
+
+### F15 — rich Markdown editor configuration ownership
+
+- Extracted TipTap extension composition, Chinese-friendly Markdown input rules, task-list shortcuts, code-block input handling, and image paste/drop interception into `frontend/src/lib/richMarkdownEditor.ts`.
+- `NoteEditorView` retains page lifecycle responsibilities: Markdown debounce synchronization, draft persistence, uploads, save/publish flow, and routing.
+- Removed the redundant second `taskListShortcut` registration after verifying Tiptap input-rule aggregation semantics; the duplicate only produced a warning and had no independent behavior.
+- Added a source-scan guard so rich-editor extension imports do not spread back into views.
+- Verification: 68/68 frontend Node tests, lint, format check, production build, and a Playwright browser smoke test all passed. The smoke test used a non-conflicting port after discovering port 5173 was serving the unrelated main-workspace dev server.
