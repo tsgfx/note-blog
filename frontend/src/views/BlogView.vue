@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { isoYear, monthDayCompact } from '../lib/date'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   listPublishedNotes,
@@ -64,7 +65,7 @@ const groups = computed(() => {
   }
   const map = new Map<string, NoteSummary[]>()
   posts.value.forEach((post) => {
-    const year = (post.publishedAt ?? '').slice(0, 4) || '未标注'
+    const year = isoYear(post.publishedAt) || '未标注'
     const bucket = map.get(year)
     if (bucket) bucket.push(post)
     else map.set(year, [post])
@@ -81,11 +82,6 @@ function switchSort(sort: 'recent' | 'views' | 'recommended') {
       page: undefined,
     },
   })
-}
-
-function monthDay(value?: string): string {
-  if (!value) return ''
-  return `${value.slice(5, 7)}-${value.slice(8, 10)}`
 }
 
 const HTML_ESCAPE: Record<string, string> = {
@@ -358,7 +354,7 @@ onMounted(() => {
             :style="{ '--i': Math.min(index, 10) }"
           >
             <div class="post-aside">
-              <time class="post-date" :datetime="post.publishedAt">{{ monthDay(post.publishedAt) }}</time>
+              <time class="post-date" :datetime="post.publishedAt">{{ monthDayCompact(post.publishedAt) }}</time>
               <span v-if="post.viewCount != null" class="post-views" :title="`浏览量 ${post.viewCount}`">
                 {{ post.viewCount }} 阅
               </span>

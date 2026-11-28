@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { isoDate } from '../lib/date'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   deleteNote,
@@ -177,10 +178,6 @@ function folderOf(note: NoteSummary): string {
   const inScope = scope.length > 0 && scope.every((segment, index) => parts[index] === segment)
   const relative = inScope ? parts.slice(scope.length) : parts
   return relative.join(' / ') || '本目录'
-}
-
-function dateOf(value?: string): string {
-  return value ? value.slice(0, 10) : ''
 }
 
 /**
@@ -887,7 +884,7 @@ onBeforeUnmount(() => {
               <div class="row-meta">
                 <span class="folder">{{ folderOf(note) }}</span>
                 <span class="dot">·</span>
-                <span>{{ dateOf(note.updatedAt) }}</span>
+                <span>{{ isoDate(note.updatedAt) }}</span>
                 <!-- 阅读量只对已发布文章有意义：草稿的 0 是"没人能看"，不是"没人想看" -->
                 <template v-if="note.status === 'PUBLISHED'">
                   <span class="dot">·</span>

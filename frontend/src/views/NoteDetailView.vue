@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { isoDate } from '../lib/date'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   generateNoteMeta,
@@ -54,7 +55,7 @@ const folder = computed(() => {
   if (!source) return '新建笔记'
   return source.split('/').slice(0, -1).join(' / ')
 })
-const date = computed(() => (note.value?.updatedAt ?? '').slice(0, 10))
+const date = computed(() => isoDate(note.value?.updatedAt))
 /**
  * 专栏/系列连载名称：
  * 1. 优先取以「专栏:」或「系列:」开头的标签；
@@ -81,7 +82,7 @@ const seriesName = computed(() => {
  * 公开文章该显示「发布」而不是「最后改动」：读者关心这篇是什么时候写的。
  * 改过之后另外标一句「更新于」，技术文章的内容新鲜度是读者判断可信度的依据。
  */
-const publishedDate = computed(() => (note.value?.publishedAt ?? '').slice(0, 10))
+const publishedDate = computed(() => isoDate(note.value?.publishedAt))
 const updatedLater = computed(() => Boolean(publishedDate.value && date.value && date.value !== publishedDate.value))
 const republishing = ref(false)
 

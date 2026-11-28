@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { monthDaySpaced } from '../lib/date'
 import { RouterLink } from 'vue-router'
 import { getBlogStats, listPublishedNotes, type BlogStats, type NoteSummary } from '../api/notes'
 import { isLoggedIn } from '../api/auth'
@@ -220,10 +221,6 @@ onBeforeUnmount(() => {
   }
 })
 
-function monthDay(value?: string): string {
-  return value ? value.slice(5, 10).replace('-', ' / ') : ''
-}
-
 /** 外链与 mailto 新开窗口；/api 下的地址交给浏览器直连；其余走路由 */
 function linkKind(href?: string): 'none' | 'external' | 'raw' | 'internal' {
   if (!href) return 'none'
@@ -435,7 +432,7 @@ function scrollToTop() {
         <ol v-if="posts.length" class="post-list">
           <li v-for="(post, index) in posts" :key="post.id" class="post" :style="{ '--i': index }">
             <RouterLink class="post-link" :to="`/blog/${post.slug}`">
-              <span class="post-date">{{ monthDay(post.publishedAt) }}</span>
+              <span class="post-date">{{ monthDaySpaced(post.publishedAt) }}</span>
               <span class="post-title">{{ post.title }}</span>
               <span v-if="post.summary" class="post-summary">{{ post.summary }}</span>
             </RouterLink>

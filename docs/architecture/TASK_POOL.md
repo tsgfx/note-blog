@@ -18,13 +18,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Deletion test:** deleting duplicated unwrap blocks reduces complexity without pushing details into callers.
 
-### B2 — Canonical display date formatting
+### B2 — Canonical display date formatting ✅ completed
 
 **Entropy:** ad-hoc ISO slicing and locale formatting across views.
 
 **Target:** small date display utility with explicit formats, then migrate callers.
 
 **Caution:** do not create a generic date framework; only canonicalize formats actually used.
+
+**Result:** completed. Added `lib/date.ts` for the four ISO display formats actually used (`isoDate`, `isoYear`, compact and spaced month-day), migrated Blog/Home/Notes/NoteDetail call sites, and added unit tests. Verification: lint/format/build passed; 30 frontend Node tests passed.
 
 ### B3 — Public-blog read ownership ✅ completed
 

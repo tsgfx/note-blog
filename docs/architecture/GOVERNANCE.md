@@ -45,3 +45,10 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Moved account identity composition into `AuthService`; `AccountController` no longer uses `UserRepository`.
 - Added ArchUnit enforcement: controllers must not depend on repositories, and repositories may only be used from service/repository code.
 - Verification: full backend suite passed (273 tests, 0 failures/errors, 2 Docker-dependent skips); `git diff --check` clean.
+
+
+### B2 — canonical display date formatting
+
+- Added `frontend/src/lib/date.ts` as the single owner of the ISO display formats actually used by the UI.
+- Migrated ad-hoc date slicing in Blog, Home, Notes, and NoteDetail without changing rendered formats.
+- Added focused unit tests; verification passed: lint, format check, production build, 30 frontend Node tests.
