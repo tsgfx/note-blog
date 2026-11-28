@@ -188,3 +188,13 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - `InboxService` consumes canonical `SiteUrls` rather than independently reading and trimming `site.base-url`.
 - `ApiRoutes` documentation explicitly restricts it to routes shared across layers, avoiding a generic string grab-bag.
 - Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B19 — notification payload formatting ownership
+
+- Added package-private `NotificationPayloadFormatter` as the sole owner of webhook-provider payload schemas.
+- Removed the public `buildPayloadJson` method from `NotificationService`; formatting is no longer leaked through the transport service interface.
+- `NotificationService` now owns only enablement, canonical article URL construction, asynchronous execution, transport, logging, and failure containment.
+- Payload tests target the formatter directly; transport tests remain on the service.
+- Corrected the disabled-webhook test to verify the actual `send` transport method instead of a vacuous `sendAsync` assertion.
+- Verification: full backend suite passed (287 tests, 0 failures/errors, 2 Docker-dependent skips).

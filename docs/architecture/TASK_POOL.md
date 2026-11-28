@@ -173,6 +173,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added scoped `ApiRoutes.INBOX_QUICK_CAPTURE`; controller, security, and configuration examples now consume the same contract. `InboxService` uses `SiteUrls` instead of its own `@Value` normalization. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B19 — Notification payload formatting ownership ✅ completed
+
+**Entropy:** `NotificationService` mixed two unrelated responsibilities: asynchronous webhook transport side effects and provider-specific payload adaptation. The formatting logic was exposed as a public service method only so tests could reach it, leaking an internal implementation detail through the service interface.
+
+**Target:** transport ownership in `NotificationService`; webhook-provider schema ownership in an internal formatter with direct behavior tests.
+
+**Result:** completed. Added package-private `NotificationPayloadFormatter`, moved all provider detection/schema generation there, removed the leaked public `buildPayloadJson` service method, and migrated payload tests to the formatter. `NotificationService` no longer stores an unused ObjectMapper and now owns only enablement, URL construction, async execution, transport, and failure containment. Also corrected the disabled-webhook test to assert against the actual synchronous transport method. Verification: full backend suite passed, 287 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

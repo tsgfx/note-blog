@@ -24,27 +24,27 @@ class NotificationServiceTest {
         return new SiteUrls(baseUrl, "一隅笔记");
     }
 
+    private String payload(String webhookUrl, String postTitle, String articleUrl, String commentContent) {
+        return new NotificationPayloadFormatter(webhookUrl, objectMapper)
+                .commentPayload("一隅笔记", postTitle, articleUrl, commentContent, "1.1.1.1");
+    }
+
     @Test
     @DisplayName("未配置 Webhook 时禁用，不发起网络请求")
-    void disabledWhenUrlIsBlank() {
+    void disabledWhenUrlIsBlank() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         NotificationService service = new NotificationService("", siteUrls("http://localhost:5173"), objectMapper, httpClient);
 
         assertThat(service.isEnabled()).isFalse();
 
         service.notifyNewComment("文章标题", "post-slug", "评论内容", "127.0.0.1");
-        verify(httpClient, never()).sendAsync(any(), any());
+        verify(httpClient, never()).send(any(), any());
     }
 
     @Test
     @DisplayName("识别飞书 Webhook 格式")
     void formatsFeishuPayload() {
-        NotificationService service = new NotificationService(
-                "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
-                siteUrls("https://notes.example.com"),
-                objectMapper);
-
-        String json = service.buildPayloadJson("文章一", "https://notes.example.com/blog/p1", "太精彩了", "1.1.1.1");
+        String json = payload("https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "文章一", "https://notes.example.com/blog/p1", "太精彩了");
         assertThat(json).contains("\"msg_type\":\"text\"");
         assertThat(json).contains("\"content\":{\"text\":");
         assertThat(json).contains("【一隅笔记 · 新评论提醒】");
@@ -54,12 +54,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("识别钉钉 Webhook 格式")
     void formatsDingTalkPayload() {
-        NotificationService service = new NotificationService(
-                "https://oapi.dingtalk.com/robot/send?access_token=xxx",
-                siteUrls("https://notes.example.com"),
-                objectMapper);
-
-        String json = service.buildPayloadJson("文章二", "https://notes.example.com/blog/p2", "受教了", "1.1.1.1");
+        String json = payload("https://oapi.dingtalk.com/robot/send?access_token=xxx", "文章二", "https://notes.example.com/blog/p2", "受教了");
         assertThat(json).contains("\"msgtype\":\"text\"");
         assertThat(json).contains("\"text\":{\"content\":");
         assertThat(json).contains("《文章二》");
@@ -68,12 +63,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("识别企业微信机器人格式")
     void formatsWeComPayload() {
-        NotificationService service = new NotificationService(
-                "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx",
-                siteUrls("https://notes.example.com"),
-                objectMapper);
-
-        String json = service.buildPayloadJson("文章三", "https://notes.example.com/blog/p3", "顶一下", "1.1.1.1");
+        String json = payload("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx", "文章三", "https://notes.example.com/blog/p3", "顶一下");
         assertThat(json).contains("\"msgtype\":\"text\"");
         assertThat(json).contains("\"text\":{\"content\":");
         assertThat(json).contains("《文章三》");
@@ -82,12 +72,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("识别 Bark 推送格式")
     void formatsBarkPayload() {
-        NotificationService service = new NotificationService(
-                "https://api.day.app/my-key",
-                siteUrls("https://notes.example.com"),
-                objectMapper);
-
-        String json = service.buildPayloadJson("文章四", "https://notes.example.com/blog/p4", "写的真棒", "1.1.1.1");
+        String json = payload("https://api.day.app/my-key", "文章四", "https://notes.example.com/blog/p4", "写的真棒");
         assertThat(json).contains("\"title\":\"新评论：《文章四》\"");
         assertThat(json).contains("\"body\":\"写的真棒\"");
         assertThat(json).contains("\"url\":\"https://notes.example.com/blog/p4\"");
@@ -96,12 +81,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("通用 Webhook：携带结构化属性与文本兼容格式")
     void formatsGenericPayload() {
-        NotificationService service = new NotificationService(
-                "https://example.com/webhook",
-                siteUrls("https://notes.example.com"),
-                objectMapper);
-
-        String json = service.buildPayloadJson("文章五", "https://notes.example.com/blog/p5", "好文", "1.1.1.1");
+        String json = payload("https://example.com/webhook", "文章五", "https://notes.example.com/blog/p5", "好文");
         assertThat(json).contains("\"articleTitle\":\"文章五\"");
         assertThat(json).contains("\"commentContent\":\"好文\"");
         assertThat(json).contains("\"clientIp\":\"1.1.1.1\"");

@@ -7,8 +7,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -31,7 +29,7 @@ public class NotificationService {
     private final String webhookUrl;
     private final SiteUrls siteUrls;
     private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
+    private final NotificationPayloadFormatter payloadFormatter;
     /** 旁路池：外部 webhook 可能挂 4 秒，绝不能占请求线程或 commonPool。 */
     private final Executor executor;
 
@@ -71,7 +69,7 @@ public class NotificationService {
             Executor executor) {
         this.webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
         this.siteUrls = siteUrls;
-        this.objectMapper = objectMapper;
+        this.payloadFormatter = new NotificationPayloadFormatter(this.webhookUrl, objectMapper);
         this.httpClient = httpClient;
         this.executor = executor;
     }
@@ -99,7 +97,7 @@ public class NotificationService {
             try {
                 String articleUrl = siteUrls.post(postSlug);
                 String truncatedContent = truncate(commentContent, 300);
-                String bodyJson = buildPayloadJson(postTitle, articleUrl, truncatedContent, clientIp);
+                String bodyJson = payloadFormatter.commentPayload(siteUrls.title(), postTitle, articleUrl, truncatedContent, clientIp);
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(webhookUrl))
@@ -120,60 +118,6 @@ public class NotificationService {
         }, executor);
         } catch (RejectedExecutionException e) {
             log.debug("notification_dropped slug={}", postSlug);
-        }
-    }
-
-    /**
-     * 根据 Webhook URL 特征构造适配的消息体。
-     * 飞书、钉钉、企业微信、Bark 与通用 Webhook 一并兼容。
-     */
-    public String buildPayloadJson(String postTitle, String articleUrl, String commentContent, String clientIp) {
-        String summary = String.format("【%s · 新评论提醒】\n文章：《%s》\n内容：%s\n链接：%s",
-                siteUrls.title(), postTitle, commentContent, articleUrl);
-
-        try {
-            if (webhookUrl.contains("feishu") || webhookUrl.contains("larksuite")) {
-                // 飞书自定义机器人格式
-                return objectMapper.writeValueAsString(Map.of(
-                        "msg_type", "text",
-                        "content", Map.of("text", summary)
-                ));
-            } else if (webhookUrl.contains("dingtalk.com")) {
-                // 钉钉自定义机器人格式
-                return objectMapper.writeValueAsString(Map.of(
-                        "msgtype", "text",
-                        "text", Map.of("content", summary)
-                ));
-            } else if (webhookUrl.contains("weixin.qq.com")) {
-                // 企业微信机器人格式
-                return objectMapper.writeValueAsString(Map.of(
-                        "msgtype", "text",
-                        "text", Map.of("content", summary)
-                ));
-            } else if (webhookUrl.contains("api.day.app")) {
-                // iOS Bark 推送格式
-                return objectMapper.writeValueAsString(Map.of(
-                        "title", "新评论：《" + postTitle + "》",
-                        "body", commentContent,
-                        "url", articleUrl,
-                        "group", "一隅博客"
-                ));
-            }
-
-            // 通用格式：同时携带各常见机器人的兼容字段与结构化键
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("msgtype", "text");
-            payload.put("msg_type", "text");
-            payload.put("text", Map.of("content", summary));
-            payload.put("content", Map.of("text", summary));
-            payload.put("title", "新评论：《" + postTitle + "》");
-            payload.put("articleTitle", postTitle);
-            payload.put("commentContent", commentContent);
-            payload.put("clientIp", clientIp == null ? "" : clientIp);
-            payload.put("url", articleUrl);
-            return objectMapper.writeValueAsString(payload);
-        } catch (Exception e) {
-            return "{\"text\":\"" + summary.replace("\"", "\\\"").replace("\n", "\\n") + "\"}";
         }
     }
 
