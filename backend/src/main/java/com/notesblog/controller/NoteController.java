@@ -28,9 +28,6 @@ import com.notesblog.service.RelatedNoteService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -54,9 +51,6 @@ public class NoteController {
     private final PublishPreflightService publishPreflightService;
     private final BacklinkService backlinkService;
 
-    /** 单页上限，与前端列表页的每页条数解耦，防止一次拉走整库。 */
-    private static final int MAX_PAGE_SIZE = 100;
-
     @GetMapping
     public ApiResponse<Page<NoteSummaryDto>> list(
             @RequestParam(required = false) NoteStatus status,
@@ -68,29 +62,10 @@ public class NoteController {
             @RequestParam(defaultValue = "updated") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        // 参数来自查询串，别让 page=-1 / size=0 把 PageRequest 抛成 500
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(safePage, safeSize, adminSort(sort));
-        // library 是 path 的旧名字（只支持第一段），保留是为了旧的链接和书签不断
+        // library 是 path 的旧名字（只支持第一段），保留是为了旧的链接和书签不断。
+        // 分页限幅与排序是目录读模型的业务规则，不在 HTTP 边缘组装。
         String scope = (path != null && !path.isBlank()) ? path : library;
-        return ApiResponse.ok(noteCatalogService.list(status, scope, keyword, tag, stale, pageable));
-    }
-
-    /**
-     * 笔记列表的排序方式。
-     *
-     * <p>{@code updated}（默认）是按最近改动，日常管理最常用；
-     * {@code views} 按阅读量，作者想知道「写的东西有没有人看」时用得上；
-     * {@code published} 按发布时间，适合回看发布节奏。
-     * 都补上 id 兜底，避免同一时间戳下分页顺序抖动（同一条会出现两次或漏掉）。
-     */
-    private static Sort adminSort(String sort) {
-        return switch (sort == null ? "" : sort) {
-            case "views" -> Sort.by(Sort.Order.desc("viewCount"), Sort.Order.desc("updatedAt"), Sort.Order.desc("id"));
-            case "published" -> Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"));
-            default -> Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"));
-        };
+        return ApiResponse.ok(noteCatalogService.adminList(status, scope, keyword, tag, stale, sort, page, size));
     }
 
     /** 左侧「库」导航：库名与篇数。字面量路径，不会被 /{slug} 抢走。 */

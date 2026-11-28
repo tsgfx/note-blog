@@ -87,3 +87,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Migrated blog recommendation loading and article-detail history recording to that owner.
 - Added behavior tests for ordering/capping/damaged data and a structural test preventing direct key use elsewhere.
 - Verification: frontend lint, format check, production build, and 35 Node tests passed.
+
+
+### B8 — admin catalog paging/sorting ownership
+
+- Moved admin note-list page clamping, the 100-row cap, and stable sort mapping from `NoteController` into `NoteCatalogService.adminList`.
+- Kept public paging bounds separate in `PublicBlogService`; no artificial global pagination constant was introduced because the two audiences have different constraints.
+- Reweighted tests so controller slices verify HTTP-to-service parameter pass-through and service unit tests verify business paging/sorting behavior.
+- Verification: full backend suite passed (279 tests, 0 failures/errors, 2 Docker-dependent skips).

@@ -74,6 +74,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/readHistory.ts`; migrated recommendation input and article-history recording. Corrupt or foreign stored data now consistently falls back to an empty history rather than leaking malformed values into recommendations. Added behavior tests and a structural ownership test for the storage key. Verification: lint/format/build passed; 35 frontend Node tests passed.
 
+
+### B8 — Admin catalog paging/sorting ownership ✅ completed
+
+**Entropy:** admin note-list paging bounds and sort mapping lived in `NoteController`, making the HTTP layer own catalog business semantics.
+
+**Target:** `NoteCatalogService` owns admin-list paging limits and stable ordering; the controller only passes raw query parameters and handles the legacy `library` alias.
+
+**Result:** completed. Added `adminList(...)` to `NoteCatalogService`; removed `PageRequest`/`Sort` assembly from `NoteController`. Controller tests now verify parameter pass-through, while new service tests own clamping, the 100-row cap, and deterministic sort fallbacks. Verification: full backend suite passed, 279 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

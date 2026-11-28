@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,40 @@ public class NoteCatalogService {
     /** 左侧"库"导航用的特殊名称，必须与前端 libraryOf 的折算规则一致。 */
     public static final String LIBRARY_UNFILED = "未归档";
     public static final String LIBRARY_ROOT = "根目录";
+
+    /** 管理端单页上限，防止一次拉走整库；公开列表的上限由 PublicBlogService 单独拥有。 */
+    private static final int ADMIN_MAX_PAGE_SIZE = 100;
+
+    /**
+     * 管理端列表入口：拥有管理端自己的分页边界与排序语义。
+     *
+     * <p>控制器只传原始查询参数；{@code page=-1}、{@code size=0} 这类输入不能在这里抛成 500。
+     */
+    public Page<NoteSummaryDto> adminList(
+            NoteStatus status,
+            String path,
+            String keyword,
+            List<String> tags,
+            boolean staleOnly,
+            String sort,
+            int page,
+            int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), ADMIN_MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(safePage, safeSize, adminSort(sort));
+        return list(status, path, keyword, tags, staleOnly, pageable);
+    }
+
+    /**
+     * 管理列表排序。所有排序都补 id 兜底，避免相同时间戳下分页顺序抖动。
+     */
+    private static Sort adminSort(String sort) {
+        return switch (sort == null ? "" : sort) {
+            case "views" -> Sort.by(Sort.Order.desc("viewCount"), Sort.Order.desc("updatedAt"), Sort.Order.desc("id"));
+            case "published" -> Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"));
+            default -> Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"));
+        };
+    }
 
     /**
      * 分页列出笔记，支持按状态、库、关键字筛选。
