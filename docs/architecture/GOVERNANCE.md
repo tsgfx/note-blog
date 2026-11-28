@@ -281,7 +281,7 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Verification: 68/68 frontend Node tests, lint, format check, production build, and a Playwright browser smoke test all passed. The smoke test used a non-conflicting port after discovering port 5173 was serving the unrelated main-workspace dev server.
 
 
-### B17 — note metadata output parsing ownership
+### B23 — note metadata output parsing ownership
 
 - Extracted fragile LLM output parsing from `NoteMetaService` into `NoteMetaParser`.
 - The parser now owns code-fence stripping, JSON extraction, summary/tag length limits, tag cleanup, deduplication, and transient parse errors.

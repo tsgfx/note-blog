@@ -210,6 +210,18 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. `PublicBlogService` now owns `app.rss.max-items` and `app.sitemap.max-items`, exposes no-arg `feedItems()` / `sitemapRefs()`, and controllers only serialize XML. Defaults and behavior are unchanged. Added an ArchUnit guard preventing controllers from depending on `@Value`, making configuration ownership below the HTTP edge machine-enforceable. Verification: full backend suite passed before the test-only guard addition (292 tests, 0 failures/errors, 2 Docker-dependent skips); guard and affected controller tests passed afterward.
 
+### F14 — Parameterized client route ownership ✅ completed
+
+**Result:** completed. Parameterized blog-detail, note-detail, and editor navigation now uses named Vue Router routes with params instead of duplicated template-string path construction. Static entry literals were intentionally left unchanged; numeric editor identifiers were preserved exactly because their ID-vs-slug semantics are a separate product/API question. Added a source-scan guard against parameterized client-route interpolation outside the API layer. Verification: 67/67 frontend Node tests, lint, format check, and production build passed.
+
+### F15 — Rich Markdown editor configuration ownership ✅ completed
+
+**Result:** completed. `lib/richMarkdownEditor.ts` now owns TipTap extension composition, Chinese-friendly Markdown input rules, task-list shortcuts, code-block input handling, and image paste/drop interception. `NoteEditorView` retains page lifecycle, draft persistence, upload, save/publish, and routing. Removed the redundant duplicate `taskListShortcut` registration after verifying it had no independent input-rule semantics. Added an ownership scan and browser smoke verification. Verification: 68/68 frontend Node tests, lint, format check, production build, and Playwright editor smoke passed.
+
+### B23 — Note metadata output parsing ownership ✅ completed
+
+**Result:** completed. `NoteMetaParser` now owns fragile LLM output parsing: code-fence stripping, JSON extraction, summary/tag truncation, tag cleanup, deduplication, count limits, and transient parse errors. `NoteMetaService` retains transaction orchestration and LLM invocation. Removed the hidden private `new ObjectMapper()` and stale parsing constants. Verification: full backend suite passed with 293 tests, 0 failures, 0 errors, 2 expected Docker/Testcontainers skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries
