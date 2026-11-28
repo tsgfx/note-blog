@@ -196,6 +196,13 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `TransactionSideEffects.afterCommitOrNow` as the single scheduling implementation and migrated all three call sites. Domain comments explaining why indexing/invalidation must happen after commit remain at the business call sites. Verification: full backend suite passed, 291 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### E3 — Transaction synchronization guardrail ✅ completed
+
+**Entropy risk:** B21 canonicalized post-commit side-effect scheduling, but nothing prevented future services from re-copying Spring `TransactionSynchronizationManager` boilerplate and bypassing the invariant.
+
+**Result:** completed. Added an ArchUnit rule making `TransactionSideEffects` the sole production-code owner of transaction synchronization mechanics. Verification: full backend suite passed, 292 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

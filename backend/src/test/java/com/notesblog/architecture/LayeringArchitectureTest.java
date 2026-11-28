@@ -38,4 +38,9 @@ class LayeringArchitectureTest {
             .that().resideInAPackage("..controller..")
             .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.data.domain.Sort")
             .as("sort construction belongs to services");
+    @ArchTest
+    static final ArchRule transaction_synchronization_has_one_owner = noClasses()
+            .that().resideOutsideOfPackages("..common..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.transaction.support.TransactionSynchronizationManager")
+            .as("post-commit side effects are owned by TransactionSideEffects");
 }

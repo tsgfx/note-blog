@@ -230,3 +230,10 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Migrated note reindexing, vector-index invalidation, and inbox reindexing away from copied Spring synchronization boilerplate.
 - Kept domain rationale at the business call sites; the utility owns only transaction synchronization mechanics.
 - Verification: full backend suite passed (291 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### E3 — transaction synchronization guardrail
+
+- Added an ArchUnit rule preventing production code outside `common` from depending directly on `TransactionSynchronizationManager`.
+- This makes the B21 post-commit side-effect boundary machine-enforceable rather than convention-only.
+- Verification: full backend suite passed (292 tests, 0 failures/errors, 2 Docker-dependent skips).
