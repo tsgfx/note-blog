@@ -1,4 +1,4 @@
-import { get, post, http, type ApiResponse } from './client'
+import { del, get, patch, post } from './client'
 
 /** 后端统一的分页体 */
 export interface Page<T> {
@@ -58,25 +58,16 @@ export function listAllComments(page = 0, size = 50) {
 }
 
 export function setCommentVisibility(id: number, status: 'VISIBLE' | 'HIDDEN') {
-  return http.patch<ApiResponse<AdminComment>>(`/admin/comments/${id}/visibility`, { status }).then((res) => {
-    if (res.data.code !== 0) throw new Error(res.data.message || '操作失败')
-    return res.data.data
-  })
+  return patch<AdminComment>(`/admin/comments/${id}/visibility`, { status }, '操作失败')
 }
 
 /** 以博主身份回复：回复本身也是一条评论，公开页上紧跟父评论 */
 export function replyToComment(id: number, content: string) {
-  return http.post<ApiResponse<AdminComment>>(`/admin/comments/${id}/reply`, { content }).then((res) => {
-    if (res.data.code !== 0) throw new Error(res.data.message || '回复失败')
-    return res.data.data
-  })
+  return post<AdminComment>(`/admin/comments/${id}/reply`, { content }, '回复失败')
 }
 
 export function deleteComment(id: number) {
-  return http.delete<ApiResponse<void>>(`/admin/comments/${id}`).then((res) => {
-    if (res.data.code !== 0) throw new Error(res.data.message || '删除失败')
-    return res.data.data
-  })
+  return del<void>(`/admin/comments/${id}`, '删除失败')
 }
 
 /** 公开搜索：只检索已发布笔记 */

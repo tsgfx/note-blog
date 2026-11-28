@@ -45,31 +45,31 @@ http.interceptors.response.use(
   },
 )
 
-/** GET 并解包 ApiResponse，code !== 0 时抛错 */
-export async function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
+/** GET 并解包 ApiResponse，code !== 0 时抛错。fallback 只用于后端没有给 message 的极端情况。 */
+export async function get<T>(url: string, params?: Record<string, unknown>, fallbackMessage = '请求失败'): Promise<T> {
   const res = await http.get<ApiResponse<T>>(url, { params })
   const body = res.data
-  if (body.code !== 0) throw new Error(body.message || '请求失败')
+  if (body.code !== 0) throw new Error(body.message || fallbackMessage)
   return body.data
 }
 
-export async function post<T>(url: string, data?: unknown): Promise<T> {
+export async function post<T>(url: string, data?: unknown, fallbackMessage = '请求失败'): Promise<T> {
   const res = await http.post<ApiResponse<T>>(url, data)
   const body = res.data
-  if (body.code !== 0) throw new Error(body.message || '请求失败')
+  if (body.code !== 0) throw new Error(body.message || fallbackMessage)
   return body.data
 }
 
-export async function patch<T>(url: string, data?: unknown): Promise<T> {
+export async function patch<T>(url: string, data?: unknown, fallbackMessage = '请求失败'): Promise<T> {
   const res = await http.patch<ApiResponse<T>>(url, data)
   const body = res.data
-  if (body.code !== 0) throw new Error(body.message || '请求失败')
+  if (body.code !== 0) throw new Error(body.message || fallbackMessage)
   return body.data
 }
 
-export async function del<T = void>(url: string): Promise<T> {
+export async function del<T = void>(url: string, fallbackMessage = '请求失败'): Promise<T> {
   const res = await http.delete<ApiResponse<T>>(url)
   const body = res.data
-  if (body.code !== 0) throw new Error(body.message || '请求失败')
+  if (body.code !== 0) throw new Error(body.message || fallbackMessage)
   return body.data
 }

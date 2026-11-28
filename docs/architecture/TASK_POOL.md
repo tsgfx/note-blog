@@ -4,7 +4,7 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 ## Ready batches
 
-### B1 — Canonical frontend API unwrapping
+### B1 — Canonical frontend API unwrapping ✅ completed
 
 **Entropy:** `api/client.ts` owns `get/post/patch/del`, but `api/notes.ts` manually re-implements Axios unwrapping for update/delete/upload/publish/unpublish/generate-meta.
 
@@ -13,6 +13,8 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 **Migration shape:** replace manual `http.*` calls with existing helpers; no API contract or behavior change.
 
 **Verification:** frontend typecheck/lint/build; existing unit/e2e smoke where available.
+
+**Result:** completed in this branch. All manual Axios unwrap call sites in `api/notes.ts` and `api/comments.ts` migrated to canonical helpers. `api/account.ts#getMe` remains an intentional raw-fetch exception because the axios 401 redirect would interfere with router guard behavior. Verification: lint/format/build/node tests all passed.
 
 **Deletion test:** deleting duplicated unwrap blocks reduces complexity without pushing details into callers.
 

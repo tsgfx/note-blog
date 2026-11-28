@@ -1,4 +1,4 @@
-import { get, post, http, type ApiResponse } from './client'
+import { del, get, patch, post } from './client'
 
 export interface Page<T> {
   content: T[]
@@ -211,45 +211,35 @@ export function createNote(input: NoteInput) {
   return post<NoteDetail>('/notes', input)
 }
 
-export async function updateNote(id: number, input: Partial<NoteInput>) {
-  const res = await http.patch<ApiResponse<NoteDetail>>(`/notes/${id}`, input)
-  if (res.data.code !== 0) throw new Error(res.data.message || '保存失败')
-  return res.data.data
+export function updateNote(id: number, input: Partial<NoteInput>) {
+  return patch<NoteDetail>(`/notes/${id}`, input, '保存失败')
 }
 
-export async function deleteNote(id: number) {
-  const res = await http.delete<ApiResponse<void>>(`/notes/${id}`)
-  if (res.data.code !== 0) throw new Error(res.data.message || '删除失败')
+export function deleteNote(id: number) {
+  return del<void>(`/notes/${id}`, '删除失败')
 }
 
 export async function uploadImage(file: File) {
   const form = new FormData()
   form.append('file', file)
-  const res = await http.post<ApiResponse<{ url: string }>>('/assets', form)
-  if (res.data.code !== 0) throw new Error(res.data.message || '图片上传失败')
-  return res.data.data.url
+  const data = await post<{ url: string }>('/assets', form, '图片上传失败')
+  return data.url
 }
 
-export async function publishNote(id: number) {
-  const res = await http.post<ApiResponse<NoteDetail>>(`/notes/${id}/publish`)
-  if (res.data.code !== 0) throw new Error(res.data.message || '发布失败')
-  return res.data.data
+export function publishNote(id: number) {
+  return post<NoteDetail>(`/notes/${id}/publish`, undefined, '发布失败')
 }
 
-export async function unpublishNote(id: number) {
-  const res = await http.post<ApiResponse<NoteDetail>>(`/notes/${id}/unpublish`)
-  if (res.data.code !== 0) throw new Error(res.data.message || '下线失败')
-  return res.data.data
+export function unpublishNote(id: number) {
+  return post<NoteDetail>(`/notes/${id}/unpublish`, undefined, '下线失败')
 }
 
 /**
  * 自动生成摘要与标签。默认只填空白字段；force=true 连已有内容一起重写。
  * 服务端要等 LLM 出结果，可能花几秒，调用方自己挂 loading。
  */
-export async function generateNoteMeta(id: number, force = false) {
-  const res = await http.post<ApiResponse<NoteDetail>>(`/notes/${id}/generate-meta${force ? '?force=true' : ''}`)
-  if (res.data.code !== 0) throw new Error(res.data.message || '生成失败')
-  return res.data.data
+export function generateNoteMeta(id: number, force = false) {
+  return post<NoteDetail>(`/notes/${id}/generate-meta${force ? '?force=true' : ''}`, undefined, '生成失败')
 }
 
 /** 单条被跳过的原因，title 可能为空（笔记已不存在时） */
