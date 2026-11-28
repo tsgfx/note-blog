@@ -111,3 +111,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Kept dirty-state timing, restore confirmation, and Tiptap content synchronization in `NoteEditorView`, where that orchestration belongs.
 - Added behavior tests for round-trip/corruption/cleanup and a structural test preventing direct key use elsewhere.
 - Verification: frontend lint, format check, production build, and 38 Node tests passed.
+
+
+### B11 — admin tag-option ordering
+
+- Extracted the tag filter bar's selected-first/search/expanded/collapsed ordering into `lib/tagOptions.ts`.
+- Kept tag loading, query state, and selection actions in `NotesView`; only the deterministic presentation rule moved.
+- Added focused tests covering each ordering branch, reducing the amount of untestable logic embedded in the 1,900-line view.
+- Verification: frontend lint, format check, production build, and 42 Node tests passed.

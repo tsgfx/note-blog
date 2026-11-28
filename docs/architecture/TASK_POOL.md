@@ -101,6 +101,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `lib/editorDraft.ts` and migrated draft write/load/clear. Malformed draft records now consistently read as absent instead of leaking partial shapes into restore logic. Added behavior tests and a structural ownership test for the storage key. Verification: lint/format/build passed; 38 frontend Node tests passed.
 
+
+### B11 — Admin tag-option ordering ✅ completed
+
+**Entropy:** the large `NotesView` embedded the tag filter's ordering rules—selected tags first, search ignores the collapsed cap, expanded shows all—without any direct behavioral test.
+
+**Target:** extract one cohesive presentation rule into a small testable module while leaving data loading and view state in `NotesView`.
+
+**Result:** completed. Added `lib/tagOptions.ts` with behavior-preserving `visibleTagOptions`; `NotesView` now delegates the computed ordering. Added Node tests for selected-first, query matching, expansion, and collapsed hot-order behavior. Verification: lint/format/build passed; 42 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

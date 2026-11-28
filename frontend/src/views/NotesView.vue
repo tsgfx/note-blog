@@ -24,6 +24,7 @@ import { openQuickCapture } from '../lib/quickCaptureState'
 import { collapseAll, revealFolder } from '../lib/folderTree'
 import FolderTree from '../components/FolderTree.vue'
 import LoadingRows from '../components/LoadingRows.vue'
+import { visibleTagOptions } from '../lib/tagOptions'
 
 const PAGE_SIZE = 40
 /** 分类栏默认展示多少个标签，超过就放进定高滚动区（靠搜索定位生僻标签） */
@@ -150,21 +151,9 @@ const allNotes = computed(() => folders.value.reduce((sum, node) => sum + node.c
  * 2. 搜索词命中的全列出（此时不受数量限制），否则没法在 419 个里找到生僻标签；
  * 3. 没搜索、没展开时只给前 TAG_LIMIT 个。
  */
-const visibleTags = computed(() => {
-  const picked = tags.value.filter((t) => activeTags.value.includes(t.name))
-  const q = tagQuery.value.trim().toLowerCase()
-
-  if (q) {
-    const rest = tags.value.filter((t) => !activeTags.value.includes(t.name) && t.name.toLowerCase().includes(q))
-    return [...picked, ...rest]
-  }
-  if (tagsExpanded.value) {
-    return [...picked, ...tags.value.filter((t) => !activeTags.value.includes(t.name))]
-  }
-  // 收起状态：已选的先占位，再用最常用的补满
-  const rest = tags.value.filter((t) => !activeTags.value.includes(t.name)).slice(0, TAG_LIMIT)
-  return [...picked, ...rest]
-})
+const visibleTags = computed(() =>
+  visibleTagOptions(tags.value, activeTags.value, tagQuery.value, tagsExpanded.value, TAG_LIMIT),
+)
 
 function folderOf(note: NoteSummary): string {
   if (!note.sourcePath) return '新建笔记'
