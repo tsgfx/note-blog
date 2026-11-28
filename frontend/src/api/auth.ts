@@ -1,3 +1,4 @@
+import { clearAuthSession, hasAuthSession } from '../lib/authSession'
 import { post } from './client'
 
 export interface LoginResult {
@@ -11,12 +12,11 @@ export function login(username: string, password: string) {
 }
 
 export function isLoggedIn() {
-  return Boolean(localStorage.getItem('notes_blog_token'))
+  return hasAuthSession()
 }
 
 export function logout() {
-  localStorage.removeItem('notes_blog_token')
-  localStorage.removeItem('notes_blog_user')
+  clearAuthSession()
 }
 
 /**

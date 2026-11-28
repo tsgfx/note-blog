@@ -5,6 +5,8 @@
  * `window.location.assign('/login?reason=expired&redirect=…')`，把守卫刚拼好的深链参数冲掉。
  * 守卫要的是「拿不到身份就安静地交给下一步处理」，所以用原生 fetch，自己判断状态码。
  */
+import { getAuthToken } from '../lib/authSession'
+
 export interface Me {
   username: string
   /** 库里可为空，后端开了 non_null 序列化，空值字段会整个消失。 */
@@ -13,7 +15,7 @@ export interface Me {
 }
 
 export async function getMe(): Promise<Me | null> {
-  const token = localStorage.getItem('notes_blog_token')
+  const token = getAuthToken()
   if (!token) return null
   const response = await fetch('/api/account/me', {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },

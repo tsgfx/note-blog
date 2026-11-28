@@ -56,6 +56,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `NoteCatalogService` for list filtering, folder/library/tag navigation, and admin detail reads. `NoteService` now owns write lifecycle, publish/unpublish, batch operations, and indexing side effects. `PublicBlogService` depends only on the catalog read service for filtered public posts. Verification: full backend suite passed, 276 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B6 — Frontend auth session ownership ✅ completed
+
+**Entropy:** token/localStorage keys and auth-session clearing were duplicated across the Axios client, auth API, account API, router guard, login view, and ask state.
+
+**Target:** one owner for browser auth-session persistence and lifecycle, without changing login/token semantics.
+
+**Result:** completed. Added `lib/authSession.ts`; migrated all auth token reads/writes/clears. Stopped writing unused `notes_blog_user` while still removing that legacy key when the session is cleared. Added a structural Node test preventing auth storage keys from being reintroduced outside the owner module. Verification: lint/format/build passed; 32 frontend Node tests passed.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

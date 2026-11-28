@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import type { SearchResult } from '../api/notes'
+import { getAuthToken } from './authSession'
 import { notify } from './feedback'
 import { canAsk, consumeLocally, remaining, syncFromServer } from './guestQuota'
 
@@ -116,7 +117,7 @@ export async function ask(text = question.value) {
 
   // 游客本地配额：提前拦住并说明原因，别等发出去才被服务端拒。
   // 这不是安全措施（清缓存就能绕过），服务端按 IP 仍有硬上限。
-  const guest = !localStorage.getItem('notes_blog_token')
+  const guest = !getAuthToken()
   if (guest && !canAsk()) {
     messages.value.push({ id: ++idSeq, role: 'user', text: q })
     messages.value.push({
@@ -145,7 +146,7 @@ export async function ask(text = question.value) {
   isOpen.value = true
 
   try {
-    const token = localStorage.getItem('notes_blog_token')
+    const token = getAuthToken()
     const response = await fetch('/api/ask', {
       method: 'POST',
       signal: controller.signal,

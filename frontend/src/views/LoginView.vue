@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '../api/auth'
+import { storeAuthSession } from '../lib/authSession'
 import { notify } from '../lib/feedback'
 
 const router = useRouter()
@@ -33,8 +34,7 @@ async function submit() {
   loading.value = true
   try {
     const result = await login(username.value.trim(), password.value)
-    localStorage.setItem('notes_blog_token', result.token)
-    localStorage.setItem('notes_blog_user', result.displayName || result.username)
+    storeAuthSession(result.token)
     notify(`欢迎回来，${result.displayName || result.username}`, 'success')
     router.replace(String(route.query.redirect || '/ask'))
   } catch (e) {

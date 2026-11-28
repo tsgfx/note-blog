@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getMe, isAdmin } from '../api/account'
+import { getAuthToken, hasAuthSession } from '../lib/authSession'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -137,7 +138,7 @@ router.onError((error, to) => {
 let meCache: { token: string; admin: boolean } | null = null
 
 async function isAdminSession(): Promise<boolean | null> {
-  const token = localStorage.getItem('notes_blog_token')
+  const token = getAuthToken()
   if (!token) return null
   if (meCache?.token === token) return meCache.admin
   try {
@@ -151,7 +152,7 @@ async function isAdminSession(): Promise<boolean | null> {
 }
 
 router.beforeEach(async (to) => {
-  const loggedIn = Boolean(localStorage.getItem('notes_blog_token'))
+  const loggedIn = hasAuthSession()
   if (!to.meta.public && !loggedIn) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }

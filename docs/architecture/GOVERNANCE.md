@@ -70,3 +70,12 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Migrated `NoteController` and `PublicBlogService` so public filtered reads depend on the catalog service rather than the write service.
 - Updated `FolderTree`, repository documentation, controller tests, and focused service tests; `NoteLibraryTest` now tests the catalog service with only `NoteRepository` as a dependency.
 - Verification: full backend suite passed (276 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B6 — frontend auth session ownership
+
+- Added `lib/authSession.ts` as the sole owner of browser auth persistence: token lookup, session presence, login storage, and session clearing.
+- Migrated Axios interceptors, auth/account API helpers, router guards, login, and ask guest detection away from duplicated raw storage keys.
+- Deleted the unused display-name persistence write; `notes_blog_user` is now only a legacy key removed during session cleanup.
+- Added a structural regression test that fails if auth storage keys appear outside the owner module.
+- Verification: frontend lint, format check, production build, and 32 Node tests passed.

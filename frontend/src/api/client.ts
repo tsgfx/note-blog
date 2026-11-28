@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAuthSession, getAuthToken } from '../lib/authSession'
 
 /** 后端统一响应体 */
 export interface ApiResponse<T> {
@@ -13,7 +14,7 @@ export const http = axios.create({
 })
 
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem('notes_blog_token')
+  const token = getAuthToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -30,8 +31,7 @@ http.interceptors.response.use(
     const body = error?.response?.data
     // 401 统一表示未认证（后端的错误页已放行，服务端故障不会再被掩盖成 401）
     if (status === 401) {
-      localStorage.removeItem('notes_blog_token')
-      localStorage.removeItem('notes_blog_user')
+      clearAuthSession()
       const here = window.location.pathname + window.location.search
       if (!window.location.pathname.startsWith('/login')) {
         window.location.assign(`/login?reason=expired&redirect=${encodeURIComponent(here)}`)
