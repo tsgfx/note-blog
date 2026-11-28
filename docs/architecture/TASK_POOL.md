@@ -252,6 +252,10 @@ Candidate checks after first migrations:
 - expand backend ArchUnit rules beyond repository ownership after dependency directions are mapped;
 - dependency-direction test for domain/dto/service/controller layers.
 
+### R6 — HTTP client lifecycle and timeout ownership
+
+`LlmStreamingClient` constructs a new `HttpClient` per streaming call while probes/notification services retain injected or field-level clients. Before changing behavior, map connection reuse, timeout, and test-injection requirements across all external HTTP callers. Do not introduce a generic HTTP utility unless it encapsulates real shared semantics rather than hiding provider differences.
+
 ## Blocked / pending product decisions
 
 - Whether the uncommitted visual redesign in the main checkout should be merged into this governance line later. Governance work currently treats it as a separate product branch.
