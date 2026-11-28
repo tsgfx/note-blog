@@ -316,3 +316,8 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 ### F18 — quick-capture title inference ownership
 
 - Extracted quick-capture title inference from the global state module into pure `quickCaptureTitle.ts`. The state module still owns modal/session lifecycle; the pure module owns explicit-title precedence, Markdown/checkbox cleanup, 40-character truncation, and timestamp fallback. Added deterministic behavior tests. No user-facing behavior changed.
+
+
+### F19 — ask SSE protocol parsing ownership
+
+- Extracted SSE block parsing from `askState.ts` into pure `askStream.ts`. The state module still owns streaming lifecycle, quota synchronization, rAF render batching, abort behavior, and message state; the protocol module owns only `data:` line selection, JSON parsing, malformed-event containment, and default empty event data. Verification: 77/77 frontend Node tests, lint, format check, and production build passed.

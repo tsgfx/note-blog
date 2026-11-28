@@ -3,6 +3,7 @@ import type { SearchResult } from '../api/notes'
 import { getAuthToken } from './authSession'
 import { notify } from './feedback'
 import { canAsk, consumeLocally, remaining, syncFromServer } from './guestQuota'
+import { parseAskStreamEvent, type AskStreamEvent } from './askStream'
 
 export type AskStage = 'idle' | 'searching' | 'answering'
 
@@ -67,22 +68,6 @@ function finishMessage() {
   stage.value = 'idle'
 }
 
-interface StreamEvent {
-  type: string
-  data: Record<string, unknown>
-}
-
-function parseEvent(block: string): StreamEvent | null {
-  const line = block.split('\n').find((row) => row.startsWith('data:'))
-  if (!line) return null
-  try {
-    const payload = JSON.parse(line.slice(5).trim()) as StreamEvent
-    return { type: payload.type, data: payload.data ?? {} }
-  } catch {
-    return null
-  }
-}
-
 /** 游客今日剩余提问次数（响应式，供界面显示）。
  *  声明在 handle() 之前：handle 会写它，而 const 有暂时性死区。 */
 export const quotaLeft = ref(remaining())
@@ -92,7 +77,7 @@ export function refreshQuota() {
   quotaLeft.value = remaining()
 }
 
-function handle(event: StreamEvent | null) {
+function handle(event: AskStreamEvent | null) {
   if (!event || !currentMsg) return
   if (event.type === 'sources') {
     currentMsg.sources = (event.data.sources as SearchResult[]) ?? []
@@ -197,9 +182,9 @@ export async function ask(text = question.value) {
       buffer += decoder.decode(value, { stream: true })
       const blocks = buffer.split('\n\n')
       buffer = blocks.pop() ?? ''
-      blocks.forEach((block) => handle(parseEvent(block)))
+      blocks.forEach((block) => handle(parseAskStreamEvent(block)))
     }
-    if (buffer) handle(parseEvent(buffer))
+    if (buffer) handle(parseAskStreamEvent(buffer))
     // 流正常结束但服务端没发 done（连接被掐断等）：把已有内容落袋为安
     if (streamingId.value === msg.id) finishMessage()
   } catch (e) {
