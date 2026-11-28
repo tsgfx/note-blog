@@ -1,5 +1,6 @@
 package com.notesblog.service;
 
+import com.notesblog.common.TransactionSideEffects;
 import com.notesblog.common.NotFoundException;
 import com.notesblog.domain.Note;
 import com.notesblog.domain.NoteStatus;
@@ -26,8 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 笔记写生命周期：创建、编辑、删除、发布/下线、批量状态变更与索引副作用协调。
@@ -144,16 +143,7 @@ public class NoteService {
      * 不该因为索引排队失败把整个请求变成 500，缺失的分片可以事后一键补建。
      */
     private void reindexAfterCommit(Long noteId) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    queueReindex(noteId);
-                }
-            });
-        } else {
-            queueReindex(noteId);
-        }
+        TransactionSideEffects.afterCommitOrNow(() -> queueReindex(noteId));
     }
 
     private void queueReindex(Long noteId) {
@@ -175,16 +165,7 @@ public class NoteService {
      * <p>没有事务（例如异步重建线程里调用）时直接失效。
      */
     private void invalidateIndexAfterCommit() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    vectorIndex.invalidate();
-                }
-            });
-        } else {
-            vectorIndex.invalidate();
-        }
+        TransactionSideEffects.afterCommitOrNow(vectorIndex::invalidate);
     }
 
     /** 批量操作的单次上限，与 {@code BatchIdsRequest} 的 @Size 保持一致。 */

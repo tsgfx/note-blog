@@ -189,6 +189,13 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added package-private `NoteTaxonomy.seriesName` as the single owner of series-tag interpretation. Both services migrated; Backlink retains its distinct folder fallback. Added direct taxonomy tests. Verification: full backend suite passed, 289 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B21 — Transactional side-effect scheduling ✅ completed
+
+**Entropy:** Note and inbox write flows each copied the same Spring synchronization boilerplate to defer index/cache side effects until after commit. The duplicated pattern hides a critical invariant: async work must never read uncommitted note state.
+
+**Result:** completed. Added `TransactionSideEffects.afterCommitOrNow` as the single scheduling implementation and migrated all three call sites. Domain comments explaining why indexing/invalidation must happen after commit remain at the business call sites. Verification: full backend suite passed, 291 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

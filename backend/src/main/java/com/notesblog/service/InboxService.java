@@ -1,5 +1,6 @@
 package com.notesblog.service;
 
+import com.notesblog.common.TransactionSideEffects;
 import com.notesblog.common.ApiRoutes;
 import com.notesblog.config.SiteUrls;
 import com.notesblog.domain.Note;
@@ -26,8 +27,6 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -118,16 +117,7 @@ public class InboxService {
 
         Note saved = noteRepository.save(note);
         // 提交后再排索引：事务还没提交时重建线程按 id 查不到这一行（见 NoteService.reindexAfterCommit）
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    queueReindex(saved.getId());
-                }
-            });
-        } else {
-            queueReindex(saved.getId());
-        }
+        TransactionSideEffects.afterCommitOrNow(() -> queueReindex(saved.getId()));
 
         String sourceDesc = (request.source() != null && !request.source().isBlank())
                 ? request.source().trim()

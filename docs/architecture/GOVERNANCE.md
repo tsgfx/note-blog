@@ -222,3 +222,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Migrated both backlink and related-note recommendation consumers.
 - Preserved the distinct Backlink source-folder fallback rather than merging different semantics.
 - Verification: full backend suite passed (289 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B21 — transactional side-effect scheduling
+
+- Added `TransactionSideEffects.afterCommitOrNow` as the canonical implementation of post-commit-or-immediate execution.
+- Migrated note reindexing, vector-index invalidation, and inbox reindexing away from copied Spring synchronization boilerplate.
+- Kept domain rationale at the business call sites; the utility owns only transaction synchronization mechanics.
+- Verification: full backend suite passed (291 tests, 0 failures/errors, 2 Docker-dependent skips).
