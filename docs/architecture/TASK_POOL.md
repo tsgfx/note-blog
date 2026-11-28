@@ -83,6 +83,15 @@ Statuses: `ready` = enough evidence and safe batch shape; `research` = needs cal
 
 **Result:** completed. Added `adminList(...)` to `NoteCatalogService`; removed `PageRequest`/`Sort` assembly from `NoteController`. Controller tests now verify parameter pass-through, while new service tests own clamping, the 100-row cap, and deterministic sort fallbacks. Verification: full backend suite passed, 279 tests, 0 failures/errors, 2 Docker-dependent skips.
 
+
+### B9 — Audit paging ownership and pagination anti-regression ✅ completed
+
+**Entropy:** `AuditController` still assembled `PageRequest` and DTO mapping at the HTTP edge after the same pattern had been removed from the note catalog.
+
+**Target:** services own pagination construction and query semantics; controllers remain HTTP edges. Prevent reintroduction with architecture tests.
+
+**Result:** completed. `AuditService.list(page, size)` now owns safe page/size clamping, the 200-row cap, repository paging, and DTO mapping. `AuditController` only passes query parameters. ArchUnit now rejects controller dependencies on `PageRequest` and `Sort`. Verification: full backend suite passed, 281 tests, 0 failures/errors, 2 Docker-dependent skips.
+
 ## Research batches
 
 ### R1 — Remaining NoteService responsibility boundaries

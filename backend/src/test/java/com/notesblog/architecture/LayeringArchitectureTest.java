@@ -26,4 +26,16 @@ class LayeringArchitectureTest {
             .that().resideOutsideOfPackages("..service..", "..repository..")
             .should().dependOnClassesThat().resideInAPackage("..repository..")
             .as("repositories are owned by the service layer");
+
+    @ArchTest
+    static final ArchRule controllers_do_not_assemble_page_requests = noClasses()
+            .that().resideInAPackage("..controller..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.data.domain.PageRequest")
+            .as("pagination construction belongs to services");
+
+    @ArchTest
+    static final ArchRule controllers_do_not_assemble_sorts = noClasses()
+            .that().resideInAPackage("..controller..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("org.springframework.data.domain.Sort")
+            .as("sort construction belongs to services");
 }

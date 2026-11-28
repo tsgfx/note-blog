@@ -95,3 +95,11 @@ Phase 0: repository census, architecture map, ownership map, duplication invento
 - Kept public paging bounds separate in `PublicBlogService`; no artificial global pagination constant was introduced because the two audiences have different constraints.
 - Reweighted tests so controller slices verify HTTP-to-service parameter pass-through and service unit tests verify business paging/sorting behavior.
 - Verification: full backend suite passed (279 tests, 0 failures/errors, 2 Docker-dependent skips).
+
+
+### B9 — audit paging ownership and pagination anti-regression
+
+- Moved audit-log page/size clamping, repository paging, and DTO mapping into `AuditService`.
+- Invalid paging input now converges to safe values instead of risking a 500 from `PageRequest` construction.
+- Added ArchUnit rules preventing controllers from depending on `PageRequest` or `Sort` again.
+- Verification: full backend suite passed (281 tests, 0 failures/errors, 2 Docker-dependent skips).

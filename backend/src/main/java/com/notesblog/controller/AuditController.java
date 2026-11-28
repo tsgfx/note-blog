@@ -5,7 +5,6 @@ import com.notesblog.dto.AuditLogDto;
 import com.notesblog.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,8 +21,6 @@ public class AuditController {
     @GetMapping
     public ApiResponse<Page<AuditLogDto>> list(@RequestParam(defaultValue = "0") int page,
                                                @RequestParam(defaultValue = "50") int size) {
-        Page<AuditLogDto> result = auditService.list(PageRequest.of(page, Math.min(size, 200)))
-                .map(AuditLogDto::from);
-        return ApiResponse.ok(result);
+        return ApiResponse.ok(auditService.list(page, size));
     }
 }

@@ -1,9 +1,11 @@
 package com.notesblog.service;
 
 import com.notesblog.domain.AuditLog;
+import com.notesblog.dto.AuditLogDto;
 import com.notesblog.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,8 +36,15 @@ public class AuditService {
         auditLogRepository.save(log);
     }
 
-    public Page<AuditLog> list(Pageable pageable) {
-        return auditLogRepository.findAllByOrderByIdDesc(pageable);
+    /**
+     * 管理端审计日志分页。页码和单页上限属于查询语义，不能由 HTTP 控制器组装。
+     * 非法输入收敛到安全范围，避免 page=-1 / size=0 变成 500。
+     */
+    public Page<AuditLogDto> list(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+        return auditLogRepository.findAllByOrderByIdDesc(pageable).map(AuditLogDto::from);
     }
 
     private String currentUser() {
