@@ -48,7 +48,7 @@ Backend production code:
 
 | package | files | lines | observed role |
 |---|---:|---:|---|
-| `service` | 40 | 5078 | most business complexity; now split into public/catalog/write-oriented services |
+| `service` | 44 | 5150 | most business complexity; public/catalog/write boundaries plus canonical parser/vector utilities |
 | `controller` | 16 | 1361 | REST endpoints; repository access removed |
 | `config` | 12 | 1029 | security, rate limiting, schema bootstrap, canonical public URLs |
 | `dto` | 33 | 749 | API contracts |
@@ -67,13 +67,13 @@ Largest backend complexity centers:
 
 Frontend complexity centers:
 
-- `NotesView.vue` (~1949 lines)
-- `HomeView.vue` (~1653 lines in this snapshot)
-- `NoteDetailView.vue` (~1499)
-- `NoteEditorView.vue` (~1490)
-- `AskDrawer.vue` (~1070)
-- `SettingsView.vue` (~1021)
-- `BlogView.vue` (~935)
+- `NotesView.vue` (~1601 lines)
+- `HomeView.vue` (~1650)
+- `NoteDetailView.vue` (~1502)
+- `NoteEditorView.vue` (~1262 after rich-editor extraction)
+- `AskDrawer.vue` (~1055)
+- `SettingsView.vue` (~1025)
+- `BlogView.vue` (~915)
 
 These files mix route orchestration, remote state, local UI state, formatting, and domain display rules. They are the largest frontend entropy sources, but refactoring them must be behavior-preserving and incremental.
 
@@ -140,3 +140,15 @@ Do not start with:
 - rewrites of editor or rendering pipeline;
 - changing public API response shapes;
 - merging semantically different recommendation/search services just because they both use vectors.
+
+## 6a. Canonical ownership introduced during governance
+
+The following boundaries are now implemented and should be treated as the canonical owners when making future changes:
+
+- frontend persistence/state: `authSession`, `editorDraft`, `editorPreferences`, `readHistory`, `viewCounter`, `guestQuota`, `theme`, quick-capture draft state;
+- frontend domain/display rules: `date`, `tagOptions`, `noteFolder`, `notesListKeyboard`, preflight grouping, Markdown source edits, quick-capture title inference;
+- frontend framework boundaries: `richMarkdownEditor` owns TipTap extension/input-rule composition; named Vue Router routes own parameterized client navigation;
+- backend read boundaries: `PublicBlogService` for public content/feed/sitemap reads, `NoteCatalogService` for admin catalog reads;
+- backend domain/infrastructure rules: `NoteTaxonomy`, `TransactionSideEffects`, `NotificationPayloadFormatter`, `EmbeddingVector`, `NoteMetaParser`, `SiteUrls`, typed rate-limit configuration.
+
+These entries are intentionally ownership boundaries, not a mandate to move every helper into `lib/` or `common/`.
